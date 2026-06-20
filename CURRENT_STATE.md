@@ -1,29 +1,24 @@
 # CURRENT_STATE — Project Offspring
 
-**Last updated:** 2026-06-20 23:40 UTC (cron tick 23 — api.py create_app factory + test suite passes)
-**Cron job:** b2605ed17cef (every 3h) — still active; Phase 10 email task paused for arch redesign
-**Phase:** BUILDING — Phase 11: Architecture Redesign (SQLite messaging, FastAPI, multi-step cycles, dreaming)
+**Last updated:** 2026-06-20 — Phase 12: Implementation complete
+**Phase:** 12 — Architecture Redesign LIVE
 **Status: RUNNING**
 
 ---
 
-**Active task:**
+**Active task:** None — implementation complete. Daemon v2 running.
 
-**Architecture redesign — messages.py + runtime_log.py + api.py complete; next: rewrite core.py**
+**Implementation complete (2026-06-20 session 20260620_203000_f5fbbd):**
+1. ✅ `offspring/messages.py` — SQLite wrapper for messages.db
+2. ✅ `offspring/runtime_log.py` — SQLite wrapper for runtime_log.db (500-cycle rotation)
+3. ✅ `offspring/api.py` — FastAPI service on :7744, live
+4. ✅ `offspring/core.py` — rewritten: multi-step agentic loop, dreaming signal, FastAPI integration
+5. ✅ `scripts/migrate_flat_to_sqlite.py` — 179 cycles + all messages imported from flat files
+6. ✅ `/fen_ui/index.php` — reads messages.db + runtime_log.db via SQLite directly + FastAPI for POST
+7. ✅ `/fen_ui/stream.php` — calls FastAPI /status (fallback: SQLite direct)
+8. ✅ `offspring/tools.py` — added `send_message` tool
 
-Design documents updated (2026-06-20 session 20260620_203000):
-- `design/ARCHITECTURE.md` — multi-step cycle model, FastAPI messaging, SQLite schemas, dreaming, log rotation
-- `design/MVP.md` — revised capabilities + build sequence
-- `design/offspring_ui/OVERVIEW.md` — PHP UI calls FastAPI instead of reading flat files
-
-**Implementation order:**
-1. ✅ `offspring/messages.py` — SQLite wrapper for messages.db (tick 22, all tests pass)
-2. ✅ `offspring/runtime_log.py` — SQLite wrapper for runtime_log.db (tick 22, 500-cycle rotation verified)
-3. ✅ `offspring/api.py` — FastAPI service on :7744 (all endpoints, create_app factory, tests pass) ← **tick 23**
-4. Rewrite `offspring/core.py` — multi-step agentic loop; start API as background thread ← **NEXT**
-5. `offspring/migrate_files_to_db.py` — import INBOX.md, OUTBOX.md, FEN_TO_ALMA.md, RUNTIME_LOG.md
-6. Update `alma.dedyn.io/fen_ui/` — PHP UI reads from FastAPI
-7. Update `fen-caretaker` cron — POST to /messages instead of file append
+**Next:** Update `fen-caretaker` cron — POST to /messages instead of file append
 
 **Stopped:** Phase 10 Tick 21 email (Resend API) — paused while architecture is rebuilt. Will resume after core redesign is live.
 
