@@ -71,20 +71,24 @@ def append_file(path, content) -> str:
     return f"appended {len(content)} bytes to {p}"
 
 
-def run_command(cmd, timeout=30) -> str:
-    """Run a shell command and return combined stdout+stderr; never raises."""
+def run_command(command=None, cmd=None, timeout=30, timeout_seconds=None) -> str:
+    """Run a shell command. Returns stdout+stderr. Accepts 'command' or 'cmd' as the arg name."""
+    shell_cmd = command or cmd
+    if not shell_cmd:
+        return "Error: no command provided"
+    actual_timeout = timeout_seconds if timeout_seconds is not None else timeout
     try:
         result = subprocess.run(
-            cmd,
+            shell_cmd,
             shell=True,
             capture_output=True,
             text=True,
-            timeout=timeout,
+            timeout=actual_timeout,
         )
         output = (result.stdout or "") + (result.stderr or "")
         return output if output else f"[exit {result.returncode}]"
     except subprocess.TimeoutExpired:
-        return f"[error: command timed out after {timeout}s]"
+        return f"[error: command timed out after {actual_timeout}s]"
     except Exception as e:
         return f"[error: {e}]"
 

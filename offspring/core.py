@@ -129,6 +129,9 @@ def load_config() -> Config:
                     cfg.api_base_url = value
                 elif key == "api_key":
                     cfg.api_key = value
+                elif key == "api_key_env":
+                    import os as _os
+                    cfg.api_key = _os.environ.get(value.strip(), "")
                 elif key == "memory_path":
                     cfg.memory_path = value
                 elif key == "soul_path":
@@ -327,6 +330,18 @@ def build_context(
         "",
         "[SESSION CONTEXT]",
         "\n".join(session_context_parts),
+        "",
+        "[TOOLS]",
+        "You can call tools via the <act> block. Each <call> runs one tool.\n"
+        "Available tools:\n"
+        "  read_file(path)                     — read a file; result stored in memory next session\n"
+        "  write_file(path, content)           — write content to a file (creates or overwrites)\n"
+        "  append_file(path, content)          — append content to a file\n"
+        "  run_command(command[, timeout_seconds]) — run a shell command; stdout/stderr stored in memory\n"
+        "\n"
+        "Tool results are NOT available in this session. They are stored as memories and\n"
+        "available next cycle. Use tools to set up state you will read next time.\n"
+        "Omit <act> entirely if there is nothing to do.",
         "",
         "[TASK]",
         task,

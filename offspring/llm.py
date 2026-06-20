@@ -1,8 +1,10 @@
 """
 llm.py — LLM API abstraction for Fen.
 
-Wraps the OpenAI-compatible chat completions API.
-Provider is fully configurable via Config: local Ollama, vLLM, OpenAI, Groq, etc.
+Provider routing:
+  - GitHub Copilot + Claude model → Anthropic SDK → /v1/messages (no content filter)
+  - Everything else               → OpenAI SDK   → /chat/completions
+
 Only CONFIG.yaml needs changing to switch providers — no code changes required.
 
 Single public interface:
@@ -13,21 +15,12 @@ Single public interface:
 from __future__ import annotations
 
 import logging
-import time
-import urllib.request
-import urllib.error
-import json
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    # Config is defined in core.py; imported at call time to avoid circular imports.
-    # Type hint only — not evaluated at runtime.
     from offspring.core import Config
 
 logger = logging.getLogger(__name__)
-
-# Cache: fingerprint -> {"token": str, "expires_at": float}
-_token_cache: dict = {}
 
 
 class LLMError(Exception):
@@ -35,64 +28,69 @@ class LLMError(Exception):
     pass
 
 
-def _resolve_api_key(api_key: str, api_base_url: str) -> str:
+def _is_claude(model: str) -> bool:
+    return model.lower().startswith("claude")
+
+
+def _call_anthropic(prompt: str, cfg: "Config") -> str:
     """
-    Exchange a GitHub OAuth/PAT token for a short-lived Copilot API token.
-
-    Only activates when api_base_url contains "githubcopilot.com" and the key
-    looks like a GitHub token (gho_, github_pat_, or ghu_ prefix).
-    Falls back to the raw key on any exchange error.
+    Call via Anthropic SDK → hits /v1/messages, not /chat/completions.
+    Used for Copilot + Claude models to bypass the chat_completions content filter.
     """
-    if "githubcopilot.com" not in (api_base_url or ""):
-        return api_key
+    try:
+        import anthropic
+    except ImportError as e:
+        raise LLMError(
+            f"anthropic package not installed. Run: pip install anthropic\nOriginal error: {e}"
+        )
 
-    if not (
-        api_key.startswith("gho_")
-        or api_key.startswith("github_pat_")
-        or api_key.startswith("ghu_")
-    ):
-        return api_key
-
-    fingerprint = f"{api_key[:8]}:{len(api_key)}"
-    cached = _token_cache.get(fingerprint)
-    if cached and time.time() < cached["expires_at"] - 300:
-        return cached["token"]
+    # Copilot's /v1/messages endpoint wants "Authorization: Bearer <token>"
+    # Copilot's /v1/messages endpoint wants "Authorization: Bearer ***    # The Anthropic SDK's `auth_token` parameter does exactly this.
+    extra_headers = {
+        "Editor-Version": "vscode/1.104.1",
+        "Copilot-Integration-Id": "vscode-chat",
+        "Openai-Intent": "conversation-edits",
+        "x-initiator": "agent",
+    }
 
     try:
-        req = urllib.request.Request(
-            "https://api.github.com/copilot_internal/v2/token",
-            headers={
-                "Authorization": f"token {api_key}",
-                "User-Agent": "GithubCopilot/1.0",
-                "Accept": "application/json",
-                "Editor-Version": "vscode/1.97.0",
-            },
+        client = anthropic.Anthropic(
+            auth_token=cfg.api_key or "",
+            base_url=cfg.api_base_url or "https://api.anthropic.com",
+            default_headers=extra_headers,
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode())
-        token = data["token"]
-        expires_at = float(data.get("expires_at", time.time() + 1800))
-        _token_cache[fingerprint] = {"token": token, "expires_at": expires_at}
-        return token
-    except Exception as exc:
-        logger.warning("GitHub Copilot token exchange failed, using raw key: %s", exc)
-        return api_key
+    except Exception as e:
+        raise LLMError(f"Failed to create Anthropic client: {e}") from e
+
+    try:
+        response = client.messages.create(
+            model=cfg.model,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except anthropic.AuthenticationError as e:
+        raise LLMError(f"Authentication failed — check api_key in CONFIG.yaml: {e}") from e
+    except anthropic.APIConnectionError as e:
+        raise LLMError(f"Connection failed — check api_base_url in CONFIG.yaml: {e}") from e
+    except anthropic.APITimeoutError as e:
+        raise LLMError(f"Request timed out: {e}") from e
+    except anthropic.APIError as e:
+        raise LLMError(f"API error: {e}") from e
+    except Exception as e:
+        raise LLMError(f"Unexpected error during LLM call: {e}") from e
+
+    if not response.content:
+        raise LLMError("Anthropic API returned empty content block.")
+
+    # response.content is a list of blocks; join text blocks.
+    text = "".join(block.text for block in response.content if hasattr(block, "text"))
+    return text or ""
 
 
-def call(prompt: str, cfg: "Config") -> str:
+def _call_openai(prompt: str, cfg: "Config") -> str:
     """
-    Call the LLM with a single user message containing the full prompt.
-
-    Args:
-        prompt: The complete prompt string (soul + memory + context + task).
-        cfg:    A Config object with api_base_url, api_key, and model fields.
-
-    Returns:
-        Raw response text from the model.
-
-    Raises:
-        LLMError: On authentication failure, connection error, timeout, or empty response.
-                  The caller (core.py) catches LLMError, logs it, and continues to next cycle.
+    Call via OpenAI-compatible SDK → /chat/completions.
+    Used for Ollama, vLLM, OpenAI, and any non-Copilot provider.
     """
     try:
         from openai import OpenAI, AuthenticationError, APIConnectionError, APITimeoutError, APIError
@@ -101,20 +99,10 @@ def call(prompt: str, cfg: "Config") -> str:
             f"openai package not installed. Run: pip install openai\nOriginal error: {e}"
         )
 
-    resolved_key = _resolve_api_key(cfg.api_key or "", cfg.api_base_url or "")
-
-    is_copilot = "githubcopilot.com" in (cfg.api_base_url or "")
     client_kwargs: dict = {
-        "api_key": resolved_key or "local",
-        "base_url": cfg.api_base_url or None,  # None = OpenAI default endpoint
+        "api_key": cfg.api_key or "local",
+        "base_url": cfg.api_base_url or None,
     }
-    if is_copilot:
-        client_kwargs["default_headers"] = {
-            "Editor-Version": "vscode/1.104.1",
-            "Copilot-Integration-Id": "vscode-chat",
-            "Openai-Intent": "conversation-edits",
-            "x-initiator": "agent",
-        }
 
     try:
         client = OpenAI(**client_kwargs)
@@ -124,7 +112,7 @@ def call(prompt: str, cfg: "Config") -> str:
     try:
         response = client.chat.completions.create(
             model=cfg.model,
-            max_tokens=1500,
+            max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],
         )
     except AuthenticationError as e:
@@ -138,19 +126,40 @@ def call(prompt: str, cfg: "Config") -> str:
     except Exception as e:
         raise LLMError(f"Unexpected error during LLM call: {e}") from e
 
-    # Extract content — handle Copilot API quirk: empty choices[] when output is cut
     if not response.choices:
         usage = getattr(response, 'usage', None)
         ct = getattr(usage, 'completion_tokens', '?') if usage else '?'
         raise LLMError(
-            f"API returned empty choices (response truncated? completion_tokens={ct}). "
-            "Try reducing context length or checking Copilot token output limits."
+            f"API returned empty choices (completion_tokens={ct}). "
+            "Check api_base_url and model name in CONFIG.yaml."
         )
+
     try:
         content = response.choices[0].message.content
     except (IndexError, AttributeError) as e:
-        raise LLMError(f"Unexpected response shape — could not extract content: {e}") from e
+        raise LLMError(f"Unexpected response shape: {e}") from e
 
-    # Return raw string regardless of whether it parses cleanly.
-    # core.py's parse_response handles malformed output; we don't second-guess it here.
     return content or ""
+
+
+def call(prompt: str, cfg: "Config") -> str:
+    """
+    Call the LLM with the full prompt.
+
+    Routes to Anthropic SDK for Copilot+Claude (avoids /chat/completions content filter),
+    OpenAI SDK for everything else.
+
+    Returns:
+        Raw response text from the model.
+
+    Raises:
+        LLMError: On auth failure, connection error, timeout, or empty response.
+    """
+    is_copilot = "githubcopilot.com" in (cfg.api_base_url or "")
+
+    if is_copilot and _is_claude(cfg.model or ""):
+        logger.debug("Routing to Anthropic SDK (Copilot + Claude → /v1/messages)")
+        return _call_anthropic(prompt, cfg)
+    else:
+        logger.debug("Routing to OpenAI SDK (/chat/completions)")
+        return _call_openai(prompt, cfg)

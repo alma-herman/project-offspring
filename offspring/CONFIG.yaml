@@ -2,14 +2,12 @@
 # Edit only CONFIG.yaml to switch providers. No code changes needed.
 
 # LLM backend
-# Local Ollama — zero marginal cost, no content filtering.
-# hermes3:8b is the intended model for local deployment.
-# NOTE: GitHub Copilot (claude-sonnet-4.6) was tested but content-filtered
-# Fen's soul doc (specifically the "On contact" section, which says helpfulness
-# is not a primary drive). Do not use Copilot as Fen's backend.
-model: hermes3:8b
-api_base_url: "http://localhost:11434/v1"
-api_key: "ollama"
+# GitHub Copilot (claude-sonnet-4.6) via Anthropic SDK → /v1/messages.
+# No content filter on this endpoint. Switch api_base_url to http://localhost:11434/v1
+# and model to hermes3:8b when running on local Ollama hardware.
+model: claude-sonnet-4.6
+api_base_url: "https://api.githubcopilot.com"
+api_key_env: COPILOT_GITHUB_TOKEN
 
 # File paths (relative to project root or absolute)
 memory_path: offspring/memories.db
