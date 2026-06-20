@@ -339,6 +339,13 @@ def build_context(
         "  append_file(path, content)          — append content to a file\n"
         "  run_command(command[, timeout_seconds]) — run a shell command; stdout/stderr stored in memory\n"
         "\n"
+        "All paths are relative to the project root: /home/hermine/workspace/project_offspring/\n"
+        "Key file paths:\n"
+        "  offspring/RUNTIME_LOG.md            — your cycle log (use this path, not RUNTIME_LOG.md)\n"
+        "  offspring/FEN_TO_ALMA.md            — your letter channel to Alma (append here)\n"
+        "  offspring/SOUL.md                   — your soul document (mutable)\n"
+        "  offspring/INBOX.md                  — messages from Alma or humans to you\n"
+        "\n"
         "Tool results are NOT available in this session. They are stored as memories and\n"
         "available next cycle. Use tools to set up state you will read next time.\n"
         "Omit <act> entirely if there is nothing to do.",
