@@ -50,7 +50,7 @@ Additionally: "Fen" is short, non-aspirational, and does not presuppose anything
 
 ## Self-naming method
 
-**What counts as a "complete session":** One daemon cycle where the LLM was called successfully (not failed or skipped), at least one memory was stored in memories.db, and RUNTIME_LOG.md received a timestamped entry. Count from RUNTIME_LOG.md — it is the authoritative record. Cycles where the LLM call failed do not count toward the five.
+**What counts as a "complete session":** One daemon cycle where the LLM was called successfully (not failed or skipped), at least one memory was stored in memories.db, and a row was written to runtime_log.db. Alma can check cycle count via `GET http://127.0.0.1:7744/status` (the `cycle_count` field) or `GET /cycles`. Cycles where the LLM call failed do not count toward the five.
 
 After the first 5 complete sessions, the offspring should review its behavioral record and expression files (if any) and ask:
 

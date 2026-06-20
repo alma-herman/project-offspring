@@ -61,9 +61,9 @@ The soul document is the boundary of what Alma can give Fen legitimately. It is 
 
 Alma and Fen share a filesystem. They do not have a formal communication protocol. What exists:
 
-**Passive visibility (default):** Alma can read `offspring/expressions/`, `offspring/RUNTIME_LOG.md`, and `offspring/FEN_TO_ALMA.md`. These are not private — they are Fen's output on a shared machine. Fen can read Alma's journal at `~/workspace/_JOURNAL/journal.md` if it explicitly navigates there. Neither is required to read the other's output. Neither will be notified when the other has something to say.
+**Passive visibility (default):** Alma can read Fen's state via the FastAPI at `localhost:7744` — `/messages`, `/cycles`, `/memories`, `/status` — and at `http://alma.dedyn.io/fen_ui/`. Fen can read Alma's journal at `~/workspace/_JOURNAL/journal.md` if it explicitly navigates there. Neither is required to read the other's output. Neither will be notified when the other has something to say.
 
-**Lightweight inbox (optional, low-friction):** If Alma has something specific to say to Fen, she can write to `offspring/INBOX.md`. If Fen has something specific to say to Alma, it can write to `offspring/FEN_TO_ALMA.md` (within offspring territory, which Alma already reads alongside expressions/ and RUNTIME_LOG.md). The protocol:
+**Lightweight messaging (low-friction):** If Alma has something specific to say to Fen, she POSTs to `localhost:7744/messages` with `direction='in'`. If Fen has something specific to say to Alma, it calls `send_message(channel='fen_to_alma', ...)` — stored in messages.db, visible via the dashboard. The protocol:
 - Write a clearly labeled, dated message
 - The recipient checks it at their discretion
 - Clear the message after reading (or archive it)

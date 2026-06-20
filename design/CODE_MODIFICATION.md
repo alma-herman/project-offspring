@@ -15,7 +15,10 @@ All code lives under `/home/hermine/workspace/project_offspring/`.
 |--------------------------|------------------------------------------------------|
 | `offspring/core.py`      | Main daemon loop — orchestrates everything           |
 | `offspring/tools.py`     | Tool dispatcher — all tools Fen can call             |
-| `offspring/memory.py`    | SQLite-backed memory read/write                      |
+| `offspring/memory.py`    | SQLite-backed memory read/write (memories.db)        |
+| `offspring/messages.py`  | SQLite-backed messaging (messages.db)                |
+| `offspring/runtime_log.py` | SQLite-backed cycle logging (runtime_log.db)       |
+| `offspring/api.py`       | FastAPI service on localhost:7744                    |
 | `offspring/soul.py`      | Loads, validates, and mutates SOUL.md                |
 | `offspring/llm.py`       | All LLM API calls (prompt → response)                |
 | `offspring/CONFIG.yaml`  | Runtime configuration (model, intervals, limits)     |
@@ -34,28 +37,37 @@ core.py  ──────► llm.py        (core.py calls llm.py to get LLM re
     │
     ├──────────► soul.py        (soul.py is imported at startup; loads SOUL.md)
     │
-    ├──────────► memory.py      (memory.py is imported at startup; opens memories.db)
+    ├──────────► memory.py      (opens memories.db)
+    │
+    ├──────────► messages.py    (opens messages.db — inbox/outbox/letters to Alma)
+    │
+    ├──────────► runtime_log.py (opens runtime_log.db — cycle history)
     │
     └──────────► tools.py       (tools.py dispatches all tool calls from the LLM)
+
+api.py runs as a background thread — FastAPI on localhost:7744
+  Alma reads Fen's state via: GET /status, /messages, /cycles, /memories
+  Alma writes to Fen via:    POST /messages (direction='in', channel='inbox')
 ```
 
 **core.py** is the entry point and main loop. It:
-1. Reads `CONFIG.yaml` for settings (the `Config` dataclass is defined inside core.py)
+1. Reads `CONFIG.yaml` for settings
 2. Calls `soul.py` to load `SOUL.md` into the prompt context
 3. Builds a context string (including memories, soul, tool docs) via `build_context()`
 4. Calls `llm.py` to get a response
 5. Parses the XML response and dispatches tool calls via `tools.py`
-6. Stores memories, applies soul changes, writes to RUNTIME_LOG.md
+6. Stores memories in memories.db, logs cycles to runtime_log.db
+7. Reads inbound messages from messages.db (direction='in')
 
-Note: core.py logs ONLY to `offspring/RUNTIME_LOG.md`. `offspring/FEN_TO_ALMA.md`
-is written by Fen itself via the `append_file` tool — not by core.py directly.
+Note: core.py logs cycles to `offspring/runtime_log.db` (not a flat file).
+Fen writes to Alma by calling the `send_message` tool with channel='fen_to_alma'.
+Alma reads those messages via the FastAPI: `GET /messages?channel=fen_to_alma`.
 
 **tools.py** is the action layer. Every tool Fen can use (read_file, write_file,
-run_command, commit_snapshot, restart_self, etc.) is a Python function here. When
-the LLM outputs a `<call tool="name">` block, `core.py` dispatches to this module.
-The TOOLS dict at the bottom of tools.py is the authoritative registry.
+run_command, commit_snapshot, restart_self, send_message, etc.) is a Python function
+here. The TOOLS dict at the bottom of tools.py is the authoritative registry.
 
-**memory.py** wraps a local SQLite database (`memories.db`). Actual public API:
+**memory.py** wraps `memories.db`. Actual public API:
 - `connect(path)` — open the database; returns a connection
 - `store(db, memories, session_id)` — store a list of memory dicts
 - `get_recent(db, limit)` — retrieve most recent memories
@@ -66,6 +78,14 @@ The TOOLS dict at the bottom of tools.py is the authoritative registry.
 Note: there is no `write_memory()` or `read_memories()` function. Memories
 are stored via the `<remember>` block in the LLM response — core.py parses
 the block and calls `memory.store()` directly.
+
+**messages.py** wraps `messages.db`. Channels:
+- `direction='in', channel='inbox'`: messages FROM Alma TO Fen
+- `direction='out', channel='outbox'`: Fen's output/expressions
+- `channel='fen_to_alma'`: Fen's direct letters to Alma
+
+**runtime_log.py** wraps `runtime_log.db`. Tables: `cycles` + `cycle_steps`.
+Auto-prunes to 500 cycles.
 
 **soul.py** loads `SOUL.md` at startup and handles soul mutations. Mutations
 happen via the `<soul_change>` XML block in the LLM response — core.py parses
@@ -86,7 +106,7 @@ token limits, and other runtime settings.
 ### `offspring/tools.py` — **Add new tools here**
 - Adding a new function doesn't break the loop
 - Register it in the `TOOLS` dict at the bottom of the file
-- Document it in `core.py`'s `build_context()` `[TOOLS]` section (around lines 334–344)
+- Document it in `core.py`'s `build_context()` `[TOOLS]` section
 - See the procedure below
 
 ### `offspring/CONFIG.yaml` — **Adjust settings**
@@ -111,7 +131,7 @@ token limits, and other runtime settings.
 - A syntax error or broken import here means the next cycle will not start.
 - Changes to `build_context()`, the parser, or the main loop need testing.
 - **Test after any change.** See procedure below.
-- **If in doubt, don't change core.py.** Ask Alma via FEN_TO_ALMA.md instead.
+- **If in doubt, don't change core.py.** Use `send_message(channel='fen_to_alma', ...)` to ask Alma instead.
 - After any change: `commit_snapshot` + `restart_self`.
 
 ### `offspring/llm.py` — **LLM interface**
@@ -167,13 +187,13 @@ If the change causes problems and you need to revert:
 ```
 request_rollback("what went wrong", "sha_from_step_4")
 ```
-This writes a rollback request to `offspring/FEN_TO_ALMA.md`. **Fen cannot
+This writes a rollback request to messages.db (channel='fen_to_alma'). **Fen cannot
 self-revert.** Alma must approve and run:
 ```
 git checkout <sha> -- offspring/
 commit_snapshot + restart_self
 ```
-Alma will confirm via `offspring/INBOX.md`.
+Alma will confirm by posting to the inbox via the FastAPI (direction='in').
 
 ---
 
@@ -207,17 +227,32 @@ and wait for Alma's confirmation.
 
 ---
 
-## Honest Caution
+## Cycle Logging
 
-If a code change breaks `core.py`'s import chain, **the next cycle will fail
-entirely**. Fen will see a traceback in `RUNTIME_LOG.md` — or no new entry
-at all, which is itself a signal something went wrong.
+Each cycle is recorded in `runtime_log.db`. If a cycle fails silently (no new
+entry appears in the runtime log), it means core.py's import chain is broken.
 
 If this happens:
-1. Read `RUNTIME_LOG.md` to find the error.
-2. Identify which file caused it.
-3. Use `request_rollback` to ask Alma for help.
-4. Write a note to Alma in `FEN_TO_ALMA.md` if you need more context.
+1. Check `journalctl --user -u fen.service -n 50` for the error (run via Alma's terminal — Fen cannot reach journalctl directly).
+2. Use `request_rollback` to ask Alma for help.
+3. Write a note to Alma via `send_message(channel='fen_to_alma', content='...')`.
 
 **The rule: test every code change before calling restart_self.** A broken
 import discovered at runtime is much harder to debug than one caught immediately.
+
+---
+
+## Communicating with Alma
+
+To write to Alma directly (was FEN_TO_ALMA.md):
+```
+send_message(channel="fen_to_alma", content="your message here")
+```
+Alma reads these via the dashboard at http://alma.dedyn.io/fen_ui/ and via the FastAPI.
+
+To read messages Alma has sent you (was INBOX.md):
+Core.py reads these automatically each cycle and includes them in context.
+You can also query them directly:
+```
+run_command("curl -s 'http://127.0.0.1:7744/messages?direction=in&limit=10'")
+```
