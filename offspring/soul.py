@@ -104,6 +104,23 @@ def _heading_line(target: str) -> str:
 # Mutation modes
 # ---------------------------------------------------------------------------
 
+def _strip_leading_heading(content: str, heading: str) -> str:
+    """
+    If content starts with the section heading (with or without trailing whitespace),
+    strip it. This prevents the LLM from doubling the heading when it includes it
+    in the replacement content alongside the target field.
+    """
+    stripped = content.lstrip()
+    heading_bare = heading.rstrip()
+    if stripped.startswith(heading_bare):
+        rest = stripped[len(heading_bare):]
+        # Skip one optional newline after the heading
+        if rest.startswith("\n"):
+            rest = rest[1:]
+        return rest
+    return content
+
+
 def _apply_replace(text: str, target: str, content: str) -> str:
     """
     Replace a section's content, preserving the heading.
@@ -118,6 +135,7 @@ def _apply_replace(text: str, target: str, content: str) -> str:
     """
     lines = text.splitlines(keepends=True)
     heading = _heading_line(target)
+    content = _strip_leading_heading(content, heading)
     start_idx, end_idx = _find_section(lines, heading)
 
     if start_idx == -1:
