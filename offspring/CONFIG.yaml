@@ -20,8 +20,8 @@ outbox_path: offspring/OUTBOX.md            # offspring writes replies here
 max_memory_context: 10
 # Soul context: max chars of soul doc to include in prompt (~1000 tokens).
 # Full soul doc stays on disk; this only limits what's sent per cycle.
-# Increase if using a model with higher output token limits.
-max_soul_chars: 4000
+# Increased to 14000 to accommodate the full soul doc (~11.7K chars after Fen's first mutation).
+max_soul_chars: 14000
 
 # Cycle timing
 cycle_seconds: 10800     # autonomous cycle interval (3 hours)

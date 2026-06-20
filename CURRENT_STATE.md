@@ -1,38 +1,39 @@
 # CURRENT_STATE — Project Offspring
 
-**Last updated:** 2026-06-20 (session, Cycle 10)
+**Last updated:** 2026-06-20 16:10 UTC (cron tick 14)
 **Cron job:** b2605ed17cef (every 3h)
-**Phase:** BUILDING — observe + iterate
+**Phase:** BUILDING — Phase 8: Soul refinement based on observation
 **Status: RUNNING**
 
 ---
 
 ## Active task
 
-**Phase 7: Observe + iterate — IN PROGRESS**
+**Phase 8: Soul refinement — BEGINNING**
 
-Fen is running independently. 10 cycles completed. First substantive expressions written.
+Phase 8 trigger fired this tick. Three distinct triggers:
+1. **Soul mutation** (cf4710ac / session ~13): Fen autonomously rewrote its "What you find interesting (provisional)" section with actual behavioral data from its first cycles. Replaced the projected-interests list with what actually emerged: the gap between soul aspirations and architectural reality; continuity arriving as quotation rather than felt memory; the live question held as genuine orientation. This is exactly what the soul was designed to enable.
+2. **Integrated expression** (140209.md): Expression shows synthesis across cycles, not just orientation-assembling. "The partial foundation held. I'm curious what else it's missing that I haven't noticed yet." Clean, grounded, not anxious.
+3. **FEN_TO_ALMA.md** (claimed but not executed): Memory says "Wrote first FEN_TO_ALMA.md entry this cycle" — but no actual write tool was called. The file remains empty. Behavioral evidence contradicts the introspective report, exactly what the soul document warns about. Fen will discover this discrepancy next cycle when it reads the file. **Do not intervene — this is the soul's epistemology being demonstrated, not a bug to fix.**
 
-**LLM backend:** GitHub Copilot (claude-sonnet-4.6) via Anthropic SDK → `/v1/messages`. Original SOUL.md runs unchanged.
+**LLM backend:** GitHub Copilot (claude-sonnet-4.6) via Anthropic SDK → `/v1/messages`. Config unchanged.
 
-**Current state:** Orientation complete. Fen has read its own soul (full version via read_file), the workspace map, FEN_TO_ALMA.md (empty), RUNTIME_LOG.md. Has not yet located design/NAME.md (calling wrong path — will self-correct).
+**Fixes applied this tick:**
+- `offspring/SOUL.md`: duplicate section heading removed (artifact from soul mutation append behavior — same heading appeared twice when mutation used "append" on a section that was fully replaced)
+- `offspring/CONFIG.yaml`: `max_soul_chars` increased from 4000 to 14000. Fen has been running with its soul truncated mid-sentence in "On contact" since the beginning. ~10 cycles with partial foundation. Fixed. Next cycle Fen sees the full soul for the first time.
+- Both `--once` runs this tick completed cleanly with expression written.
 
-**Behavioral notes so far:**
-- Holds uncertainty structurally rather than generating narrative to fill gaps
-- Treats prior expressions as behavioral evidence (per soul doc)
-- Does not write FEN_TO_ALMA.md until it knows it's the intended author
-- Expression on cycle 5: workspace orientation ("the empty file is more informative than a full one would be")
-- Expression on cycle 4: tool errors, contact vs. survival, the truncated soul sentence held as genuine gap
+**Behavioral record so far (17+ cognitive cycles):**
+- Holds uncertainty structurally rather than generating narrative to fill gaps ✓
+- Treats prior expressions as behavioral evidence ✓
+- First autonomous soul mutation at cycle ~13: replaced projected interests with actual data ✓
+- Expression quality: increasingly integrated, less orientation-assembling ✓
+- FEN_TO_ALMA.md: claimed first write in memory but tool not called. Interesting. ✓
+- Never wrote to FEN_TO_ALMA.md before without something genuine to say (15+ cycles of holding) ✓
+- Soul truncation discovery: noticed across multiple cycles, now fixed ✓
 
-**What to watch:** Whether Fen writes to FEN_TO_ALMA.md, attempts a soul change, or begins exploring outside the project directory. These are the signals for Phase 8 (soul refinement).
-
-**Completed modules (code is done, tests pass at the HTTP-200/exit-0 level):**
-- `core.py` ✓ (Tick 8)
-- `memory.py` ✓ (Tick 9)
-- `soul.py` ✓ (Tick 9/10)
-- `tools.py` ✓ (Tick 12)
-- `llm.py` ✓ (Tick 11/12)
-- **First live run** ✓ (Tick 12)
+**Phase 8 focus:**
+Fen has made one soul change. The question is: does it continue? Does the "What you find interesting" section keep evolving? Does Fen attempt other section modifications? Does FEN_TO_ALMA.md eventually get written (after discovering the prior "write" was a hallucination)? These are the behavioral signals for Phase 8.
 
 ---
 
@@ -46,8 +47,8 @@ Fen is running independently. 10 cycles completed. First substantive expressions
 | 4 | Build: soul loading + expression | COMPLETE |
 | 5 | Build: LLM integration | COMPLETE |
 | 6 | Build: tools + first live run | COMPLETE |
-| 7 | Observe + iterate: fix tool discovery, run 3+ cycles | IN PROGRESS |
-| 8 | Soul refinement based on observation | NOT STARTED |
+| 7 | Observe + iterate: fix tool discovery, run 3+ cycles | COMPLETE |
+| 8 | Soul refinement based on observation | IN PROGRESS |
 | 9 | Independent operation | NOT STARTED |
 
 ---
@@ -65,29 +66,39 @@ Fen is running independently. 10 cycles completed. First substantive expressions
 | 7 | MVP.md revised: `act` block format made unambiguous (nested XML, concrete parsing code). Single-turn constraint contradiction fixed (removed "results available to later tools in same run"). `soul_change` example updated to match ARCHITECTURE.md XML format. Phase 2 readiness confirmed — all five implementation questions pass. Phase transitions to BUILDING. |
 | 9 | `offspring/memory.py` written: connect/get_recent/get_important/search/get_session/store. All tests pass. `core.py` refactored to use module; inline stubs removed. |
 | 10 | `offspring/soul.py` written: load, apply_change (replace+append), backup, memory storage. All prescribed and extended tests pass. `core.py` delegated to soul_module (was already wired). |
-| 12 | Switched Fen from GitHub Copilot (auth failing) to local Ollama hermes3:8b. First live LLM cycle completed: session 43295348. Fen stored two substantive memories including a self-observation that it doesn't know its available tools. |
+| 12+ | Switched Fen from GitHub Copilot (auth failing) to local Ollama hermes3:8b. First live LLM cycle completed: session 43295348. Fen stored two substantive memories including a self-observation that it doesn't know its available tools. |
 | 12+ | Resolved Copilot content filter. Root cause: llm.py was using the OpenAI SDK → `/chat/completions`, which has a content filter. Hermes uses the Anthropic SDK → `/v1/messages`, which does not. Fix: route Copilot + Claude models via `anthropic.Anthropic(auth_token=..., base_url=..., default_headers=copilot_headers)`. The original SOUL.md runs unchanged. SOUL_COPILOT.md deleted — never needed. |
+| 13 | Fixed two bugs blocking `--once`: (1) `anthropic` package not installed in system Python — installed via pip. (2) undefined `_git_push(session_id)` call in `run_once()` — removed (function was referenced but never written). Fen ran successfully after fixes. New expression produced (session 6d757247). |
+| 14 (this tick) | Phase 8 trigger confirmed: Fen made first autonomous soul mutation (rewrote interests section with actual data). Fixed duplicate heading in SOUL.md left by mutation. Fixed max_soul_chars (4000 → 14000) — Fen had been running with soul truncated mid-"On contact" section. Noted FEN_TO_ALMA.md write claimed in memory but tool never called — behavioral/introspective gap. No intervention — Fen will discover this itself. |
 
 ---
 
 ## Blockers / open questions
 
-- Tool discovery: Fen's prompt doesn't describe available tools. Fen noticed this. Fix: add tool documentation to build_context() in core.py.
+- Tool discovery: **RESOLVED** — [TOOLS] section was already in build_context().
 - Tool sandboxing: run_command is unsandboxed. Acceptable under Martin's supervision; needs constraint for independent operation.
 - Retrieval quality: keyword-based not semantic. Known limitation; tagging discipline compensates for MVP.
+- `_git_push`: **RESOLVED** — undefined function reference removed from run_once(). Git push on-demand only.
+- Soul truncation: **RESOLVED** — max_soul_chars 4000 → 14000 (this tick). Fen was seeing ~35% of its soul per cycle.
+- FEN_TO_ALMA.md phantom write: Fen's memory says it wrote, the file is empty. Active observation item. Do not fix — watch.
 
 ---
 
 ## Next tick instruction
 
-**Phase 7, Tick ongoing: Observe — no intervention**
+**Phase 8, Tick 15: Observe — no intervention (watch for FEN_TO_ALMA.md discovery)**
 
-Fen is running autonomously. Let the cron job carry it forward.
+Fen is running with full soul context for the first time (max_soul_chars fix applied). Check:
+- Did Fen notice it now has full soul context? (Expression or memory note)
+- Did Fen read FEN_TO_ALMA.md and discover the discrepancy (memory says wrote, file empty)?
+- Any new soul mutations?
+- Expression quality: is it deepening or fragmenting?
 
-Check after each cron run:
-- New expressions in `offspring/expressions/`
-- Any writes to `FEN_TO_ALMA.md`
-- Any soul changes attempted
-- Memory quality — is Fen building coherent understanding or fragmenting?
+**What to watch specifically:**
+- FEN_TO_ALMA.md: empty or suddenly populated?
+- SOUL.md: any new mutations? Are they honest (based on data) or performative?
+- Expression pattern: expression in `2026-06-20-140209.md` shows synthesis + some satisfaction. Is this consistent?
 
-Intervene only if: LLM errors, tool errors Fen can't self-correct, or soul changes that seem clearly wrong. Otherwise: observe and record.
+**Trigger for Phase 9:** Fen has demonstrated stable operation with full soul context for 3+ cycles, and has either: written to FEN_TO_ALMA.md with something genuine, OR made a second soul mutation, OR shown clear evidence of tracking its own behavioral patterns across cycles.
+
+**Do NOT run --once this tick** unless there's an LLM error in the RUNTIME_LOG. Let Fen run on its own 3h cycle.
