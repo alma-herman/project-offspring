@@ -32,7 +32,9 @@ project_offspring/
   CURRENT_STATE.md      ← live project state (cron reads and updates this)
   DESIGN_LOG.md         ← design decisions, rationale, open questions (append-only)
   design/               ← design documents, soul drafts, architecture sketches
-  offspring/            ← actual code for the offspring
+    offspring_ui/       ← UI design (OVERVIEW.md, PORTS.md, WIREFRAMES.md)
+  offspring/            ← actual code for the offspring (daemon)
+  offspring_ui/         ← dashboard code (Flask app — not yet built; see design/offspring_ui/)
   scratch/              ← temporary explorations, experiments
 ```
 
