@@ -311,6 +311,58 @@ def list_memories(
 
 
 # ---------------------------------------------------------------------------
+# Factory function (for testing and programmatic use)
+# ---------------------------------------------------------------------------
+
+def create_app(cfg, wake_event: Optional[threading.Event] = None) -> FastAPI:
+    """
+    Create and configure the FastAPI app with the given config.
+    
+    cfg must have attributes:
+      messages_db, memories_db, runtime_log_db, soul_path
+    
+    This wires up module-level state so the endpoints can find their DBs.
+    Also sets the wake_event if provided.
+    Returns the FastAPI app (ready for TestClient or uvicorn).
+    """
+    global _msg_db, _mem_db, _log_db, _cfg, _soul_path, _lock_path, _wake_event
+
+    from offspring import messages as _messages_mod
+    from offspring import runtime_log as _runtime_log_mod
+
+    _cfg = cfg
+    _wake_event = wake_event
+
+    # Open DB connections
+    _msg_db = _messages_mod.connect(cfg.messages_db)
+    _log_db = _runtime_log_mod.connect(cfg.runtime_log_db)
+
+    # memories_db — optional, open if exists
+    try:
+        import sqlite3 as _sq
+        _mp = Path(cfg.memories_db)
+        _mp.parent.mkdir(parents=True, exist_ok=True)
+        _mem_db = _sq.connect(str(_mp), check_same_thread=False)
+        # Create table if not present so /status doesn't throw
+        _mem_db.execute(
+            "CREATE TABLE IF NOT EXISTS memories "
+            "(id INTEGER PRIMARY KEY, content TEXT, context TEXT, "
+            "importance INTEGER, tags TEXT, session_id TEXT, created_at DATETIME, source TEXT)"
+        )
+        _mem_db.commit()
+    except Exception:
+        _mem_db = None
+
+    # soul path
+    _soul_path = Path(cfg.soul_path)
+
+    # lock path — look for offspring.lock next to soul
+    _lock_path = _soul_path.parent / "offspring.lock"
+
+    return app
+
+
+# ---------------------------------------------------------------------------
 # Server startup
 # ---------------------------------------------------------------------------
 

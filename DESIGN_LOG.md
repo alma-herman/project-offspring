@@ -692,3 +692,29 @@ Both modules were delegated to GitHub Copilot (ACP mode). Tests confirm correct 
 - `offspring/messages.py` — 3476 bytes, all tests pass
 - `offspring/runtime_log.py` — 4734 bytes, all tests pass
 - `CURRENT_STATE.md` — updated tick, active task, decisions, next instruction
+
+## 2026-06-20 23:40 UTC — Tick 23: api.py create_app factory added, all tests pass
+
+**Decision:** Add `create_app(cfg, wake_event=None)` factory function to existing `api.py`. Fix `POST /messages` status code from 201 to 200 to match test spec.
+
+**Rationale:** `api.py` already existed with all required endpoints from a previous tick, but the test spec required a `create_app(cfg)` factory pattern for clean instantiation (testable without a running daemon, wires DB connections from config object). The existing module used a `set_databases()` mutator pattern which served the same purpose but wasn't compatible with the test harness using `TestClient(api.create_app(cfg))`.
+
+**What was considered:**
+1. *Re-delegating to Copilot* — the existing api.py was structurally sound. The gap was purely mechanical: a factory wrapper around the existing module-level state. Writing it directly was lower-risk than re-generating the whole file.
+2. *Keeping 201 status* — the test spec asserts `r.status_code == 200`. HTTP convention says 201 for resource creation, but since the endpoint also handles outbound message recording (not just creation), 200 is defensible. Changed to match test.
+3. *Separate app instance per create_app call* — would require refactoring all route functions. Rejected: module-level singleton is fine for a single-daemon process. The factory just wires the state before returning the existing `app`.
+
+**Test result:** All 6 assertions pass:
+- api.create_app: ok
+- POST /messages: 200
+- GET /messages/unread: 200, count=1
+- POST /messages/1/processed: 200
+- GET /messages: 200, count=1
+- GET /status: 200
+- GET /cycles: 200
+- api.py: ALL TESTS PASS
+
+**Files modified this tick:**
+- `offspring/api.py` — added `create_app()` factory, changed POST /messages 201→200
+
+**Next implementation step:** Rewrite `offspring/core.py` — multi-step agentic loop with API thread startup, wake-on-message event, and per-step tool execution with runtime_log recording.

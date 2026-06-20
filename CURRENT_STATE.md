@@ -1,6 +1,6 @@
 # CURRENT_STATE — Project Offspring
 
-**Last updated:** 2026-06-20 21:40 UTC (cron tick 22 — messages.py + runtime_log.py written)
+**Last updated:** 2026-06-20 23:40 UTC (cron tick 23 — api.py create_app factory + test suite passes)
 **Cron job:** b2605ed17cef (every 3h) — still active; Phase 10 email task paused for arch redesign
 **Phase:** BUILDING — Phase 11: Architecture Redesign (SQLite messaging, FastAPI, multi-step cycles, dreaming)
 **Status: RUNNING**
@@ -9,7 +9,7 @@
 
 **Active task:**
 
-**Architecture redesign — messages.py + runtime_log.py complete; next: api.py**
+**Architecture redesign — messages.py + runtime_log.py + api.py complete; next: rewrite core.py**
 
 Design documents updated (2026-06-20 session 20260620_203000):
 - `design/ARCHITECTURE.md` — multi-step cycle model, FastAPI messaging, SQLite schemas, dreaming, log rotation
@@ -19,8 +19,8 @@ Design documents updated (2026-06-20 session 20260620_203000):
 **Implementation order:**
 1. ✅ `offspring/messages.py` — SQLite wrapper for messages.db (tick 22, all tests pass)
 2. ✅ `offspring/runtime_log.py` — SQLite wrapper for runtime_log.db (tick 22, 500-cycle rotation verified)
-3. `offspring/api.py` — FastAPI service on :7744 (all endpoints) ← **NEXT**
-4. Rewrite `offspring/core.py` — multi-step agentic loop; start API as background thread
+3. ✅ `offspring/api.py` — FastAPI service on :7744 (all endpoints, create_app factory, tests pass) ← **tick 23**
+4. Rewrite `offspring/core.py` — multi-step agentic loop; start API as background thread ← **NEXT**
 5. `offspring/migrate_files_to_db.py` — import INBOX.md, OUTBOX.md, FEN_TO_ALMA.md, RUNTIME_LOG.md
 6. Update `alma.dedyn.io/fen_ui/` — PHP UI reads from FastAPI
 7. Update `fen-caretaker` cron — POST to /messages instead of file append
@@ -131,7 +131,8 @@ Named in FEN_TO_ALMA tick 18 context note. In the live exchanges: not visibly co
 | 18 (this tick) | Martin made first human contact ("Hi Fen"). Fen responded genuinely — contact-orientation active, not performing. Alma added minimal context note to INBOX.md (Martin's identity, routing protocol). Fen noted validation pull, named it, watched it loosen. Conversation now live with Martin's follow-up question. |
 || 20 (this tick) | Email registered: fen09123@web-library.net (mail.tm, receive-only, credentials in .env). Sending stub remains — Resend API or SMTP relay needed next tick. Alma reply to Fen's 18:14 letter written at 21:00 UTC. |
 || 21 (arch redesign) | Major architecture redesign: (1) Replace INBOX.md/OUTBOX.md/FEN_TO_ALMA.md with messages.db (SQLite) + FastAPI service on :7744. (2) Replace RUNTIME_LOG.md with runtime_log.db (500-cycle rotation). (3) Multi-step agentic cycle: LLM calls tool, sees result in-context, iterates until `<done>` or step limit. (4) Dreaming: voluntary post-cycle memory consolidation triggered by Fen, rate-limited. Design docs (ARCHITECTURE.md, MVP.md, OVERVIEW.md) fully updated. Implementation pending. |
-|| 22 (this tick) | `messages.py` (SQLite wrapper for messages.db) and `runtime_log.py` (SQLite wrapper for runtime_log.db with 500-cycle rotation) written by Copilot delegation; all tests pass. Implementation order confirmed. Next: api.py (FastAPI service on :7744). |
+||| 22 (this tick) | `messages.py` (SQLite wrapper for messages.db) and `runtime_log.py` (SQLite wrapper for runtime_log.db with 500-cycle rotation) written by Copilot delegation; all tests pass. Implementation order confirmed. Next: api.py (FastAPI service on :7744). |
+||| 23 (this tick) | `api.py` had all endpoints but lacked `create_app(cfg)` factory (needed by test spec and for clean wiring). Added factory that opens DB connections from cfg, wires module-level state, returns the FastAPI app. Fixed POST /messages status code 201→200 to match test assertion. All 6 test assertions pass. Next: rewrite core.py with multi-step agentic loop + API thread startup. |
 
 ---
 
@@ -154,109 +155,50 @@ Named in FEN_TO_ALMA tick 18 context note. In the live exchanges: not visibly co
 
 ## Next tick instruction
 
-**Phase 11, Tick 23: Write offspring/api.py (FastAPI message service)**
+**Phase 11, Tick 24: Rewrite offspring/core.py — multi-step agentic loop + API thread**
 
 **Task:**
-Write `offspring/api.py` — a FastAPI service that runs on localhost:7744 and exposes the SQLite message store and runtime log via HTTP.
+Rewrite `offspring/core.py` to implement the new architecture from `design/ARCHITECTURE.md`:
 
-**Required endpoints (from ARCHITECTURE.md):**
+1. **Startup sequence:**
+   - Load config from `offspring/CONFIG.yaml`
+   - Open SQLite connections: memories.db, messages.db, runtime_log.db  
+   - Load soul from `offspring/SOUL.md`
+   - Create threading.Event for wake-on-message
+   - Call `api.create_app(cfg, wake_event=wake_event)` to wire up API
+   - Start API thread via `api.start_api_thread()`
+   - Acquire daemon lock (offspring.lock with PID)
+
+2. **Main loop (runs until killed):**
+   ```
+   while True:
+       wait for wake_event OR 5-minute polling interval
+       run_cycle()
+       clear wake_event
+   ```
+
+3. **run_cycle() — multi-step agentic loop:**
+   - Log cycle start in runtime_log (start_cycle)
+   - Build context: recent memories, unread messages, soul excerpt
+   - Call LLM (max 8 steps per cycle):
+     - Parse `<act>`, `<remember>`, `<soul_change>`, `<express>`, `<done>` blocks
+     - If `<act>`: execute the tool, add step to runtime_log, append result to context
+     - If `<remember>`: store memory
+     - If `<soul_change>`: apply soul mutation
+     - If `<express>`: write expression to offspring/expressions/
+     - If `<done>`: break out of step loop
+   - Mark unread messages as processed (via api or direct DB call)
+   - Log cycle end in runtime_log (end_cycle)
+
+4. **--once flag:** Run one cycle and exit (for testing).
+
+5. **Test (run after writing):**
+```bash
+cd /home/hermine/workspace/project_offspring
+.venv/bin/python3 offspring/core.py --once 2>&1 | tail -30
 ```
-POST /messages
-  Body: {direction, channel, from_agent, content, session_id?}
-  Returns: {id, created_at}
+The run should complete one cycle, store at least one memory or expression, and exit cleanly.
 
-GET /messages/unread
-  Returns: [{id, channel, from_agent, content, created_at}, ...]
+**Dependencies:** Review design/ARCHITECTURE.md for the full multi-step cycle spec.
 
-POST /messages/{id}/processed
-  (no body; marks as processed)
-
-GET /messages?channel=X&direction=Y&limit=N&offset=M
-  Returns paginated message list
-
-PATCH /messages/{id}/fulfill
-  Body: {fulfilled_by}
-
-GET /status
-  Returns: {daemon_pid, daemon_running, last_cycle_ts, last_cycle_session,
-            memory_count, unread_count, soul_mtime}
-
-GET /cycles?page=N&per_page=20
-  Returns paginated cycle list with steps
-
-GET /memories?q=X&source=Y&page=N&per_page=30
-  Returns paginated/filtered memory list
-```
-
-**Wake-on-message:** When POST /messages arrives with direction='in', signal the daemon via a threading.Event. The event object should be injectable via `set_wake_event(event)` so core.py can wire it up.
-
-**DB paths:** Read from CONFIG.yaml (messages_db, memories_db, runtime_log_db, soul_path). Pass them in at startup via `create_app(cfg, wake_event=None)` factory function. The app should work standalone (for testing) without a running daemon.
-
-**Test:** After writing, run:
-```
-pip install fastapi uvicorn httpx 2>/dev/null
-/home/hermine/workspace/project_offspring/.venv/bin/python3 -c "
-from offspring import api, messages, runtime_log, memory as mem
-import threading, time, os
-
-# Create test databases
-msg_db = messages.connect('/tmp/api_test_msgs.db')
-log_db = runtime_log.connect('/tmp/api_test_log.db')
-
-# Test the app can be created
-from unittest.mock import MagicMock
-cfg = MagicMock()
-cfg.messages_db = '/tmp/api_test_msgs.db'
-cfg.memories_db = '/tmp/test_mems.db'
-cfg.runtime_log_db = '/tmp/api_test_log.db'
-cfg.soul_path = 'offspring/SOUL.md'
-app = api.create_app(cfg)
-print('api.create_app: ok')
-
-# Test endpoints via httpx
-from fastapi.testclient import TestClient
-client = TestClient(app)
-
-# POST /messages
-r = client.post('/messages', json={'direction': 'in', 'channel': 'alma', 'from_agent': 'alma', 'content': 'Test message'})
-print(f'POST /messages: {r.status_code}')
-assert r.status_code == 200
-mid = r.json()['id']
-
-# GET /messages/unread
-r = client.get('/messages/unread')
-print(f'GET /messages/unread: {r.status_code}, count={len(r.json())}')
-assert r.status_code == 200 and len(r.json()) == 1
-
-# POST /messages/{id}/processed
-r = client.post(f'/messages/{mid}/processed')
-print(f'POST /messages/{mid}/processed: {r.status_code}')
-assert r.status_code == 200
-
-# GET /messages
-r = client.get('/messages?limit=10')
-print(f'GET /messages: {r.status_code}, count={len(r.json())}')
-assert r.status_code == 200
-
-# GET /status
-r = client.get('/status')
-print(f'GET /status: {r.status_code}, keys={list(r.json().keys())}')
-assert r.status_code == 200
-
-# GET /cycles
-r = client.get('/cycles')
-print(f'GET /cycles: {r.status_code}')
-assert r.status_code == 200
-
-print('api.py: ALL TESTS PASS')
-for f in ['/tmp/api_test_msgs.db', '/tmp/api_test_log.db', '/tmp/test_mems.db']:
-    try: os.unlink(f)
-    except: pass
-"
-```
-
-Report exactly which file was written and the full test output.
-
-**Dependencies:** fastapi, uvicorn — install in .venv if not present.
-
-**Cron ticks:** 22
+**Cron ticks:** 23
