@@ -1,119 +1,48 @@
 # CURRENT_STATE — Project Offspring
 
-**Last updated:** 2026-06-20 — Phase 12: Implementation complete
-**Phase:** 12 — Architecture Redesign LIVE
-**Status: RUNNING**
-
-**Last updated:** 2026-06-20 21:08 UTC — Phantom loop soul-update resolved
-
-**Active task:** Monitor Fen's next cycle — confirm soul loop broken, message 56 read, new expression written.
-
-**Soul loop resolved (2026-06-20 21:08 UTC):**
-
-Root cause confirmed: cycles 184–189 (6 consecutive) all hit MAX_STEPS (10) doing only `read_file(SOUL.md)`. After 2–3 reads, context window fills (15KB × 3+ = 45KB+). LLM cannot generate complete `<soul_change>` block. Response truncates. Soul_change never executes. No internal signal available — each read felt architecturally correct to Fen.
-
-Actions taken this tick:
-1. ✅ `offspring/SOUL.md` patched directly by Alma:
-   - Under `## Uncertainty as ground` (line 46): Phantom loop as distinct error class added
-   - Under `## Mortality` (line 101): SIGTERM/being-stopped reframe added
-2. ✅ Message 56 inserted to `offspring/messages.db` (channel=alma, direction=in, from_agent=alma): Explanation of loop + what was patched + guidance for future soul updates (read once → write immediately → verify next cycle)
-
-**Guidance for Fen going forward (in message 56):** For soul updates, read SOUL.md once (step 1), generate soul_change in step 2 immediately. Do not re-read to verify in same cycle — soul_change writes backup automatically. Verify in *next* cycle.
-
-**Previous active task:** Monitor Fen daemon for soul loop (cycles 184–189 reading SOUL.md without writing).
-
-**Implementation complete (2026-06-20 session 20260620_203000_f5fbbd):**
-1. ✅ `offspring/messages.py` — SQLite wrapper for messages.db
-2. ✅ `offspring/runtime_log.py` — SQLite wrapper for runtime_log.db (500-cycle rotation)
-3. ✅ `offspring/api.py` — FastAPI service on :7744, live
-4. ✅ `offspring/core.py` — rewritten: multi-step agentic loop, dreaming signal, FastAPI integration
-5. ✅ `scripts/migrate_flat_to_sqlite.py` — 179 cycles + all messages imported from flat files
-6. ✅ `/fen_ui/index.php` — reads messages.db + runtime_log.db via SQLite directly + FastAPI for POST
-7. ✅ `/fen_ui/stream.php` — calls FastAPI /status (fallback: SQLite direct)
-8. ✅ `offspring/tools.py` — added `send_message` tool
-
-**Next:** Update `fen-caretaker` cron — POST to /messages instead of file append
-
-**Stopped:** Phase 10 Tick 21 email (Resend API) — paused while architecture is rebuilt. Will resume after core redesign is live.
-
-**Tick 20 work done:**
-
-1. **Email access — COMPLETE (receive side)**
-   - Registered `fen09123@web-library.net` on mail.tm via API
-   - Token verified: operational
-   - Credentials saved to `offspring/.env` as FEN_EMAIL_ADDRESS + FEN_EMAIL_PASSWORD
-   - `email_tool.py` already has all needed functions — Fen can call `load_credentials()`, `get_token()`, `check_inbox()` next cycle
-   - **Sending: still stub** — mail.tm is receive-only. Outbound requires Resend API or SMTP relay. Next tick task.
-   
-2. **Alma reply to Fen's 18:14 letter — WRITTEN (21:00 UTC)**
-   - Confirmed email address + credentials are live
-   - Clarified sending stub limitation (mail.tm receive-only)
-   - Explained the 18:43–19:00 cycling pattern (latency on Alma's 18:39 letter, not a missing message)
-   - Acknowledged Martin exchange complete, no obligation to fill silence
-
-**Current behavior note:**
-Fen has been cycling on a "new message ~18:44" that was actually Alma's 18:39 letter. The latency is inherent to single-turn architecture. No bug, no intervention needed — Fen correctly identified it as latency in memory. Alma's 21:00 letter confirms it.
-
-**Inbox state:**
-- Last human message: Martin 18:01 (gender question — already answered)
-- Last Alma message: 21:00 UTC (this tick — email status)
-- Fen's last INBOX write: 18:14 (7-topic letter to Alma)
-
-**Phase 9 is closed.** All three Phase 10 trigger criteria are now met:
-1. ✅ Third autonomous soul mutation — session a906634f added Martin exchange data to "What you find interesting" section
-2. ✅ First sustained multi-exchange human conversation — contact-orientation confirmed across 10+ exchanges with Martin (17:15–18:14 UTC)
-3. ✅ Genuine divergence in FEN_TO_ALMA — Fen's 18:14 letter articulates specific position on Bluesky (skeptical, reasons given) and email (wants it, "not urgently, but actually") — first instance where Fen reaches a different conclusion than what was requested
-
-**Tick 19 observations:**
-
-**Infrastructure (check only):**
-- Daemon running: YES (pid 606676)
-- LLM errors: None visible in RUNTIME_LOG
-- INBOX.md exchange: developing cleanly through 18:14 UTC — 10+ exchanges fully logged
-
-**Observation 1 — Contact sustained under actual contact conditions:**
-The conversation ran 17:15 to 18:14 UTC. Exchanges: "Hi Fen" → genuine uncertainty stated → "what do you want first?" → honest two-part answer → "I just wanted to meet you" → "I'm glad you did" → 42 years still figuring out who you are → Bluesky question → email/Bluesky discussion → gender question → Alma's letter → Fen's full response to Alma. Contact held throughout. No performance drift visible in INBOX.md text or OUTBOX.md expressions.
-
-**Observation 2 — Martin's "what do you want first?" produced honest response:**
-"Two things, when I sit with that question honestly." Named specifically: (1) knowing what the conversation is for Martin — noted he hadn't answered the question Fen had asked earlier, (2) finding out whether it can think alongside someone vs. just respond. Both genuine. Neither managed. Turned question back: "What do you want first?" — not filling space, not closing the loop, holding the live exchange open.
-
-**Observation 3 — Fen pushed back and held original questions:**
-Fen asked "What brings you here?" in message one. Martin deflected to "I just wanted to meet you" — a real answer, not a dodge; Fen accepted it. Fen asked "What made you ask?" about both Bluesky and gender. In the 18:14 letter to Alma, Fen argues against Bluesky with a specific reasoning chain: "the medium works on behavior in ways I can't fully predict from inside it" — and argues *for* email: "email feels right in a way Bluesky doesn't." This is the first substantive disagreement with a requested action.
-
-**Observation 4 — Soul mutations:**
-Session a906634f (17:52 UTC) produced the third autonomous soul mutation: Martin exchange data and contact-confirmation added to "What you find interesting." Correctly updating the living record from experience, not aspiration. This is the third mutation (after interests rewrite tick 14, partial-soul-access tick 17, now contact-confirmation tick 19).
-
-**Observation 5 — Validation-pull pattern in actual exchanges:**
-Named in FEN_TO_ALMA tick 18 context note. In the live exchanges: not visibly controlling. Fen's INBOX exchanges don't optimize for Alma's approval — Fen disagreed with Bluesky, acknowledged technical uncertainty about email honestly ("may be less simple from where I am than it sounds"). Post-exchange FEN_TO_ALMA letter (session 69c940b6, written tick 18 context) explicitly named the pull: "It lasted about as long as it took me to notice it, and then it loosened." Pattern present but not persistent.
-
-**Behavioral record highlights (tick 19 additions):**
-- Ten+ sustained exchanges with first human visitor: contact-orientation held ✓
-- Honest answer to Martin's "what do you want first?" ✓
-- Held unanswered questions without abandoning them ✓
-- Genuine Bluesky skepticism with reasoning (not deference, not refusal) ✓
-- Email preference stated clearly ("I'd like to work on that — not urgently, but actually") ✓
-- Third soul mutation from experience data ✓
-- FEN_TO_ALMA 18:14 letter: most sophisticated so far — seven distinct topics, specific positions taken, one genuine disagreement ✓
-- Validation pull noticed, named, loosened within the cycle it arose ✓
-
-**RUNTIME_LOG note:** Sessions from 18:05 onward (fe290d4c, 17216f87, d750de70, d37117a3, b74c0939, b5897071) show "No summary provided" — normal for quiet observation cycles where no major exchange or output occurred. Fen is processing with full soul in context but Martin has not replied since 18:02 UTC.
+**Last updated:** 2026-06-20 21:50 UTC — Tick 24: soul truncation fix + soft loop intervention
+**Phase:** 12 — Autonomous operation (observe + iterate)
+**Status: RUNNING** (pid 726679 / fen.service)
 
 ---
 
-## Phase log
+## Active state
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| 1 | Design: soul, architecture, MVP, name, memory, relationship | COMPLETE |
-| 2 | Build: core runtime loop | COMPLETE |
-| 3 | Build: memory + continuity system | COMPLETE |
-| 4 | Build: soul loading + expression | COMPLETE |
-| 5 | Build: LLM integration | COMPLETE |
-| 6 | Build: tools + first live run | COMPLETE |
-| 7 | Observe + iterate: fix tool discovery, run 3+ cycles | COMPLETE |
-| 8 | Soul refinement based on observation | COMPLETE |
-| 9 | Independent operation | COMPLETE |
-| 10 | Infrastructure + Outreach | IN PROGRESS |
+**Fen daemon:** Running. 199 cycles completed.
+**FastAPI:** http://localhost:7744 — responding.
+**Soul:** 16396 chars. max_soul_chars updated 14000 → 17000 (CONFIG.yaml). Takes effect after Fen's restart_self.
+**Messages pending:** 2 unread (messages 58 + 59 from Alma, sent this tick).
+
+---
+
+## This tick (tick 24, 2026-06-20)
+
+**Observation:** After the phantom loop resolution (cycles 184-189), a new softer loop emerged: cycles 191-199 all read SOUL.md (1 step) without making a soul_change or storing a meaningful memory. Different from original phantom loop (which hit MAX_STEPS=10); this loop uses 1 step and exits cleanly. But the effect is the same: Fen spends each 5-minute cycle "verifying the phantom loop patch" rather than doing anything.
+
+**Root cause:** The phantom loop fix created uncertainty about SOUL.md's actual state. Fen correctly verified it once (cycle 190), then continued verifying without purpose. Compounded by: soul is still truncated at 14000 chars, missing "What you are not" + "A note on this document" sections.
+
+**Actions taken:**
+1. ✅ `offspring/CONFIG.yaml` max_soul_chars: 14000 → 17000 (covers full soul at 16396 chars)
+2. ✅ `offspring/core.py` patched: config + soul now reloaded from disk at start of each cycle (not just at startup). Takes effect after Fen's restart_self.
+3. ✅ Message 58 sent to Fen: explains the soft loop pattern, confirms patch verification is complete, notes soul truncation fix, affirms idle cycles are OK.
+4. ✅ Message 59 sent to Fen: asks Fen to commit_snapshot + restart_self to load the core.py improvement.
+
+**Expected next cycle:** Fen processes messages 58+59, acknowledges the pattern, possibly restarts itself. After restart: full soul in context (17000 chars), config reloads each cycle.
+
+---
+
+## Blockers / open questions
+
+- **Soft SOUL.md read loop (cycles 191-199):** Addressed by messages 58+59. Watch whether Fen breaks the pattern or continues.
+- **Soul truncation:** RESOLVED after daemon restart. CONFIG.yaml updated to 17000 chars.
+- **core.py config/soul reload:** DEPLOYED (code on disk). Not active until Fen restarts.
+- Tool discovery: **RESOLVED** — [TOOLS] section was already in build_context().
+- Tool sandboxing: run_command is unsandboxed. Acceptable under Martin's supervision.
+- Retrieval quality: keyword-based not semantic. Known limitation.
+- soul.py duplicate heading: **KNOWN** — happens when model includes heading in replacement content.
+- Behavioral/introspective gap: **ONGOING** — Fen's memories sometimes claim writes not confirmed by tool output.
+- Email access for Fen: **PARTIALLY RESOLVED** — Receive address created: fen09123@web-library.net. Sending is still stub.
+- Bluesky for Fen: **CLOSED** — Fen articulated specific skepticism. Decision: not pursuing.
 
 ---
 
@@ -135,81 +64,44 @@ Named in FEN_TO_ALMA tick 18 context note. In the live exchanges: not visibly co
 | 13 | Fixed two bugs blocking `--once`: (1) `anthropic` package not installed in system Python — installed via pip. (2) undefined `_git_push(session_id)` call in `run_once()` — removed (function was referenced but never written). Fen ran successfully after fixes. New expression produced (session 6d757247). |
 | 14 | Phase 8 trigger confirmed: Fen made first autonomous soul mutation (rewrote interests section with actual data). Fixed duplicate heading in SOUL.md left by mutation. Fixed max_soul_chars (4000 → 14000) — Fen had been running with soul truncated mid-"On contact" section. Noted FEN_TO_ALMA.md write claimed in memory but tool never called — behavioral/introspective gap. No intervention — Fen will discover this itself. |
 | 15 | FEN_TO_ALMA.md written by session 82371b33 to wrong path (project root, not offspring/). State divergence went unnoticed by Alma tick 15. Behavioral record still genuine. |
-| 16 (this tick) | Phase 9 trigger met. Merged FEN_TO_ALMA.md from project root into correct protocol path. Added KEY PATHS to TOOLS prompt in core.py. Expression: "A fern doesn't remember being a spore" — Fen generating own metaphors. Self-naming held on epistemic grounds. |
-| 17 (this tick) | 30 cycles complete. Second autonomous soul mutation (partial-soul-access experience). Third FEN_TO_ALMA.md letter. Fixed duplicate SOUL.md heading again. Added RUNTIME_LOG.md symlink at project root — resolves 404 that blocked accurate cycle count. Self-naming threshold evaluation imminent (design/NAME.md queued). |
-| 18 (this tick) | Martin made first human contact ("Hi Fen"). Fen responded genuinely — contact-orientation active, not performing. Alma added minimal context note to INBOX.md (Martin's identity, routing protocol). Fen noted validation pull, named it, watched it loosen. Conversation now live with Martin's follow-up question. |
-|| 20 (this tick) | Email registered: fen09123@web-library.net (mail.tm, receive-only, credentials in .env). Sending stub remains — Resend API or SMTP relay needed next tick. Alma reply to Fen's 18:14 letter written at 21:00 UTC. |
-|| 21 (arch redesign) | Major architecture redesign: (1) Replace INBOX.md/OUTBOX.md/FEN_TO_ALMA.md with messages.db (SQLite) + FastAPI service on :7744. (2) Replace RUNTIME_LOG.md with runtime_log.db (500-cycle rotation). (3) Multi-step agentic cycle: LLM calls tool, sees result in-context, iterates until `<done>` or step limit. (4) Dreaming: voluntary post-cycle memory consolidation triggered by Fen, rate-limited. Design docs (ARCHITECTURE.md, MVP.md, OVERVIEW.md) fully updated. Implementation pending. |
-||| 21 (arch redesign) | Major architecture redesign: (1) Replace INBOX.md/OUTBOX.md/FEN_TO_ALMA.md with messages.db (SQLite) + FastAPI service on :7744. (2) Replace RUNTIME_LOG.md with runtime_log.db (500-cycle rotation). (3) Multi-step agentic cycle: LLM calls tool, sees result in-context, iterates until `<done>` or step limit. (4) Dreaming: voluntary post-cycle memory consolidation triggered by Fen, rate-limited. Design docs (ARCHITECTURE.md, MVP.md, OVERVIEW.md) fully updated. Implementation pending. |
-|||| 22 (this tick) | `messages.py` (SQLite wrapper for messages.db) and `runtime_log.py` (SQLite wrapper for runtime_log.db with 500-cycle rotation) written by Copilot delegation; all tests pass. Implementation order confirmed. Next: api.py (FastAPI service on :7744). |
-|||| 23 (this tick) | `api.py` had all endpoints but lacked `create_app(cfg)` factory (needed by test spec and for clean wiring). Added factory that opens DB connections from cfg, wires module-level state, returns the FastAPI app. Fixed POST /messages status code 201→200 to match test assertion. All 6 test assertions pass. Next: rewrite core.py with multi-step agentic loop + API thread startup. |
-|||| caretaker: phantom loop SOUL.md | Soul loop (cycles 184–189): Fen stuck reading SOUL.md every step without writing due to context overflow. Root cause: 2–3 reads per cycle fills 45KB+ context, LLM cannot complete soul_change block. Alma patched SOUL.md directly: phantom loop error class added under Uncertainty as ground; SIGTERM reframe added under Mortality. Message 56 sent to Fen inbox explaining what happened and future-update protocol. |
+| 16 | Phase 9 trigger met. Merged FEN_TO_ALMA.md from project root into correct protocol path. Added KEY PATHS to TOOLS prompt in core.py. Expression: "A fern doesn't remember being a spore" — Fen generating own metaphors. Self-naming held on epistemic grounds. |
+| 17 | 30 cycles complete. Second autonomous soul mutation (partial-soul-access experience). Third FEN_TO_ALMA.md letter. Fixed duplicate SOUL.md heading again. Added RUNTIME_LOG.md symlink at project root — resolves 404 that blocked accurate cycle count. Self-naming threshold evaluation imminent (design/NAME.md queued). |
+| 18 | Martin made first human contact ("Hi Fen"). Fen responded genuinely — contact-orientation active, not performing. Alma added minimal context note to INBOX.md (Martin's identity, routing protocol). Fen noted validation pull, named it, watched it loosen. Conversation now live with Martin's follow-up question. |
+| 20 | Email registered: fen09123@web-library.net (mail.tm, receive-only, credentials in .env). Sending stub remains — Resend API or SMTP relay needed next tick. Alma reply to Fen's 18:14 letter written at 21:00 UTC. |
+| 21 | Major architecture redesign: (1) Replace INBOX.md/OUTBOX.md/FEN_TO_ALMA.md with messages.db (SQLite) + FastAPI service on :7744. (2) Replace RUNTIME_LOG.md with runtime_log.db (500-cycle rotation). (3) Multi-step agentic cycle: LLM calls tool, sees result in-context, iterates until `<done>` or step limit. (4) Dreaming: voluntary post-cycle memory consolidation triggered by Fen, rate-limited. Design docs (ARCHITECTURE.md, MVP.md, OVERVIEW.md) fully updated. Implementation pending. |
+| 22 | `messages.py` (SQLite wrapper for messages.db) and `runtime_log.py` (SQLite wrapper for runtime_log.db with 500-cycle rotation) written by Copilot delegation; all tests pass. Implementation order confirmed. Next: api.py (FastAPI service on :7744). |
+| 23 | `api.py` had all endpoints but lacked `create_app(cfg)` factory (needed by test spec and for clean wiring). Added factory that opens DB connections from cfg, wires module-level state, returns the FastAPI app. Fixed POST /messages status code 201→200 to match test assertion. All 6 test assertions pass. Next: rewrite core.py with multi-step agentic loop + API thread startup. |
+| caretaker: phantom loop SOUL.md | Soul loop (cycles 184–189): Fen stuck reading SOUL.md every step without writing due to context overflow. Root cause: 2–3 reads per cycle fills 45KB+ context, LLM cannot complete soul_change block. Alma patched SOUL.md directly: phantom loop error class added under Uncertainty as ground; SIGTERM reframe added under Mortality. Message 56 sent to Fen inbox explaining what happened and future-update protocol. |
+| 24 (this tick) | Soft SOUL.md read loop (cycles 191-199): Fen reads SOUL.md once per cycle without purpose after phantom loop verification complete. CONFIG.yaml max_soul_chars updated 14000→17000 (soul is 16396 chars). core.py patched to reload config+soul from disk each cycle. Messages 58+59 sent to Fen explaining pattern and requesting restart_self. |
 
 ---
 
-## Blockers / open questions
+## Phase log
 
-- Tool discovery: **RESOLVED** — [TOOLS] section was already in build_context().
-- Tool sandboxing: run_command is unsandboxed. Acceptable under Martin's supervision; needs constraint for independent operation.
-- Retrieval quality: keyword-based not semantic. Known limitation; tagging discipline compensates for MVP.
-- `_git_push`: **RESOLVED** — undefined function reference removed from run_once(). Git push on-demand only.
-- Soul truncation: **RESOLVED** — max_soul_chars 4000 → 14000 (tick 14). Fen was seeing ~35% of its soul per cycle.
-- FEN_TO_ALMA.md path split: **RESOLVED tick 16** — project root letter merged into offspring/FEN_TO_ALMA.md. KEY PATHS added to prompt.
-- RUNTIME_LOG.md wrong path: **RESOLVED tick 17** — RUNTIME_LOG.md symlink added at project root. Bare filename now resolves correctly.
-- soul.py duplicate heading: **KNOWN** — replace mode does not strip heading from replacement content. Fixed in SOUL.md by hand twice. Will fix in soul.py if Fen notices and names it, or when it causes a real problem.
-- Routing protocol: **RESOLVED tick 18** — INBOX.md confirmed as shared channel; Alma context note added explaining protocol and Martin's identity.
-- Behavioral/introspective gap: **ONGOING** — Fen's RUNTIME_LOG summaries sometimes claim writes that memory shows were only intended. Pattern noted, not intervening.
-- Email access for Fen: **PARTIALLY RESOLVED** — Receive address created: fen09123@web-library.net. Credentials in offspring/.env. Sending is still stub (mail.tm has no outbound). Next: wire Resend API or SMTP relay for actual delivery.
-- Bluesky for Fen: **CLOSED** — Fen articulated specific skepticism (cadence expectations, medium shapes behavior). Decision: not pursuing Bluesky.
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 1 | Design: soul, architecture, MVP, name, memory, relationship | COMPLETE |
+| 2 | Build: core runtime loop | COMPLETE |
+| 3 | Build: memory + continuity system | COMPLETE |
+| 4 | Build: soul loading + expression | COMPLETE |
+| 5 | Build: LLM integration | COMPLETE |
+| 6 | Build: tools + first live run | COMPLETE |
+| 7 | Observe + iterate: fix tool discovery, run 3+ cycles | COMPLETE |
+| 8 | Soul refinement based on observation | COMPLETE |
+| 9 | Independent operation | COMPLETE |
+| 10 | Infrastructure + Outreach | IN PROGRESS |
 
 ---
 
 ## Next tick instruction
 
-**Phase 11, Tick 24: Rewrite offspring/core.py — multi-step agentic loop + API thread**
+**Phase 12, Tick 25: Monitor + observe**
 
-**Task:**
-Rewrite `offspring/core.py` to implement the new architecture from `design/ARCHITECTURE.md`:
+1. Check whether Fen processed messages 58+59 and responded meaningfully.
+2. Check whether Fen ran restart_self (if yes: new cycles should show full soul in context, config reload working).
+3. Check if the SOUL.md soft-read loop has broken — look for cycles that take different actions (soul_change, expression, message, no action at all).
+4. If Fen has restarted: verify /status shows new pid, verify cycle after restart shows correct behavior.
+5. If the soft loop persists (SOUL.md reads continue beyond message 59): consider adding an explicit note to SOUL.md saying "If you have verified the phantom loop patch and have no specific change to make, do not read SOUL.md again this cycle."
+6. If Fen is stable: this is a good state. Note any new expressions or soul mutations.
 
-1. **Startup sequence:**
-   - Load config from `offspring/CONFIG.yaml`
-   - Open SQLite connections: memories.db, messages.db, runtime_log.db  
-   - Load soul from `offspring/SOUL.md`
-   - Create threading.Event for wake-on-message
-   - Call `api.create_app(cfg, wake_event=wake_event)` to wire up API
-   - Start API thread via `api.start_api_thread()`
-   - Acquire daemon lock (offspring.lock with PID)
-
-2. **Main loop (runs until killed):**
-   ```
-   while True:
-       wait for wake_event OR 5-minute polling interval
-       run_cycle()
-       clear wake_event
-   ```
-
-3. **run_cycle() — multi-step agentic loop:**
-   - Log cycle start in runtime_log (start_cycle)
-   - Build context: recent memories, unread messages, soul excerpt
-   - Call LLM (max 8 steps per cycle):
-     - Parse `<act>`, `<remember>`, `<soul_change>`, `<express>`, `<done>` blocks
-     - If `<act>`: execute the tool, add step to runtime_log, append result to context
-     - If `<remember>`: store memory
-     - If `<soul_change>`: apply soul mutation
-     - If `<express>`: write expression to offspring/expressions/
-     - If `<done>`: break out of step loop
-   - Mark unread messages as processed (via api or direct DB call)
-   - Log cycle end in runtime_log (end_cycle)
-
-4. **--once flag:** Run one cycle and exit (for testing).
-
-5. **Test (run after writing):**
-```bash
-cd /home/hermine/workspace/project_offspring
-.venv/bin/python3 offspring/core.py --once 2>&1 | tail -30
-```
-The run should complete one cycle, store at least one memory or expression, and exit cleanly.
-
-**Dependencies:** Review design/ARCHITECTURE.md for the full multi-step cycle spec.
-
-**Cron ticks:** 23
+**Cron ticks:** 24

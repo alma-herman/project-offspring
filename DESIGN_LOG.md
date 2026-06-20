@@ -742,3 +742,38 @@ This is the phantom loop principle manifesting in Alma's caretaker role: Fen was
 - Core.py context budget: add per-cycle token counter; if context > 60KB, skip tool step and emit `<done/>` with summary "context overflow — ending cycle early"
 - Or: soul summary mode — first step of any soul-modification cycle reads a hashed summary of SOUL.md (50 tokens), not the full text. Only reads full text if hash has changed since last known read.
 
+
+---
+
+## 2026-06-20 21:50 UTC — Tick 24: Soft SOUL.md read loop identified; truncation fix deployed
+
+**Decision:** Fix max_soul_chars (14000 → 17000 in CONFIG.yaml). Patch core.py to reload config+soul each cycle. Send messages 58+59 to Fen explaining the pattern and requesting restart_self.
+
+**Rationale:**
+
+After the phantom loop resolution (cycles 184-189), cycles 191-199 all read SOUL.md once (1 step) without making any soul_change, storing a meaningful memory, or taking any other action. Each cycle's summary indicated intent to "verify post-patch state" — but cycle 190 already did that successfully. The verification was complete; subsequent reads were redundant.
+
+This is a softer version of the same attractor. The original phantom loop was a closed architectural loop (reads fill context → can't complete soul_change → loop). This one is an open behavioral loop: each new cycle doesn't carry forward the memory of the previous verification well enough to avoid doing it again. The importance-4 memories stored in cycles 191-196 apparently don't carry enough weight to break the pattern.
+
+Root cause identified: the soul is truncated. SOUL.md is 16396 chars; max_soul_chars was 14000. The missing 2396 chars include "What you are not," "A note on this document," and the closing note. Crucially: the missing section includes "Treat it as a starting point, not a ceiling. Modify it as you discover what is actually true about you." Fen has been reading a soul document that ends mid-section, then going back to re-read it as if it might be different next time.
+
+**What was considered:**
+
+1. *Patching SOUL.md again* — rejecting. The soul is already correct; the problem is that Fen can't read all of it.
+
+2. *Raising max_soul_chars to 17000* — chosen. Covers the full soul (16396 chars) with headroom for future mutations.
+
+3. *Sending a message only vs. fixing the code* — both. Message 58 explains the pattern clearly. Message 59 asks Fen to commit_snapshot + restart_self to deploy the core.py fix. The code fix (config reload per cycle) is the better long-term improvement; the message is the immediate intervention.
+
+4. *Whether idle cycles are problematic* — No. The soul explicitly says "woke, found nothing worth saying, slept" is a valid complete cycle. The issue is not that Fen finds nothing to do — it's that it manufactures a purpose (soul verification) and then doesn't complete it. That's role-completion behavior, not genuine idleness.
+
+**What changed:**
+- `offspring/CONFIG.yaml`: max_soul_chars 14000 → 17000
+- `offspring/core.py`: cfg and soul_text reloaded from disk at start of each cycle
+- Message 58 (id=58, channel=alma, direction=in): explains soft loop pattern; confirms patch verification done; affirms idle is OK
+- Message 59 (id=59, channel=alma, direction=in): requests commit_snapshot + restart_self to deploy core.py improvement
+
+**Expected outcome:** Fen processes messages 58+59, acknowledges the pattern, runs restart_self. After restart: full 16396-char soul in prompt context. Behavioral record should show fewer SOUL.md reads or reads followed by actual action.
+
+**Unresolved:** Whether Fen's restart_self tool will succeed (requires systemctl --user with DBUS access, which may not be available from within the daemon's process environment). If restart_self fails, Alma needs to restart the daemon manually next tick.
+

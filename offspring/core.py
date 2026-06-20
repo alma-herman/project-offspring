@@ -718,6 +718,15 @@ def run():
         cycle_started_at = datetime.now(timezone.utc)
         cycle_id = _log.start_cycle(_log_db, session_id)
 
+        # Reload config each cycle so CONFIG.yaml changes take effect without restart.
+        try:
+            cfg = load_config()
+        except Exception as _cfg_err:
+            print(f"[core.py] Warning: config reload failed: {_cfg_err}. Using previous config.")
+
+        # Reload soul from disk each cycle (picks up direct edits + soul_change from previous cycle)
+        soul_text = _soul_load(soul_path)
+
         # Fetch unread messages
         unread = _msg.get_unread(_msg_db)
         has_inbox = bool(unread)
