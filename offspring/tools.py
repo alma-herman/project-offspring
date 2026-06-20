@@ -207,6 +207,53 @@ def request_rollback(reason: str, target_commit: str = "") -> str:
     return f"[request_rollback] rollback request written to FEN_TO_ALMA.md at {ts}"
 
 
+def send_message(channel: str, content: str) -> str:
+    """
+    Send a message on a named channel. Stored in messages.db via the API.
+
+    channel: 'human'        — reply to Martin
+             'alma'         — message to Alma
+             'fen_to_alma'  — async letter to Alma (like old FEN_TO_ALMA.md)
+
+    This is the preferred tool for communication. Use <express> + <channel>
+    in the structured response format, or call this tool directly.
+    """
+    try:
+        import urllib.request
+        import json
+
+        payload = json.dumps({
+            "direction": "out",
+            "channel": channel,
+            "from_agent": "fen",
+            "content": content,
+            "session_id": "",
+        }).encode()
+
+        req = urllib.request.Request(
+            "http://127.0.0.1:7744/messages",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            result = json.loads(resp.read())
+            return f"[send_message] stored as id:{result.get('id', '?')} channel:{channel}"
+    except Exception as e:
+        # Fallback: write to legacy flat files if API not yet running
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        if channel == "fen_to_alma":
+            p = PROJECT_ROOT / "offspring" / "FEN_TO_ALMA.md"
+            with p.open("a") as fh:
+                fh.write(f"\n---\n[{ts}] {content}\n")
+            return f"[send_message] fallback: written to FEN_TO_ALMA.md (API error: {e})"
+        else:
+            p = PROJECT_ROOT / "offspring" / "OUTBOX.md"
+            with p.open("a") as fh:
+                fh.write(f"\n---\n[{ts}] channel:{channel}\n{content}\n")
+            return f"[send_message] fallback: written to OUTBOX.md (API error: {e})"
+
+
 # ---------------------------------------------------------------------------
 # Tool registry
 # ---------------------------------------------------------------------------
@@ -220,6 +267,7 @@ TOOLS = {
     "commit_snapshot": commit_snapshot,
     "restart_self": restart_self,
     "request_rollback": request_rollback,
+    "send_message": send_message,
 }
 
 

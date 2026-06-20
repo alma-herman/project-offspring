@@ -11,10 +11,13 @@ api_key_env: COPILOT_GITHUB_TOKEN
 
 # File paths (relative to project root or absolute)
 memory_path: offspring/memories.db
+messages_path: offspring/messages.db
+runtime_log_path: offspring/runtime_log.db
 soul_path: offspring/SOUL.md
+# Legacy flat files — kept read-only for migration; daemon no longer writes them
 log_path: offspring/RUNTIME_LOG.md
-inbox_path: offspring/INBOX.md              # humans and Alma write here to communicate
-outbox_path: offspring/OUTBOX.md            # offspring writes replies here
+inbox_path: offspring/INBOX.md
+outbox_path: offspring/OUTBOX.md
 
 # Memory context: how many memories to include in prompt
 max_memory_context: 10
@@ -26,6 +29,15 @@ max_soul_chars: 14000
 # Cycle timing
 cycle_seconds: 300       # autonomous cycle interval (5 minutes)
 reply_interval: 60       # cycle interval when inbox has a message (1 min)
+
+# Dreaming
+min_cycles_between_dreams: 12   # minimum cycles between dreaming passes (rate limit)
+
+# Runtime log rotation
+max_cycles_retained: 500        # oldest cycles deleted when this is exceeded
+
+# FastAPI service port
+api_port: 7744
 
 # Expression platforms (all off by default — enable when ready)
 express_platforms:
