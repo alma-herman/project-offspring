@@ -132,7 +132,7 @@ def commit_snapshot(message="auto-commit") -> str:
         full_message = f"[fen] {message} — {ts}"
         # Stage offspring/ source files (not memories.db, not RUNTIME_LOG — those are data)
         add = subprocess.run(
-            "git add offspring/*.py offspring/SOUL.md CONFIG.yaml design/",
+            "git add offspring/*.py offspring/SOUL.md offspring/CONFIG.yaml design/",
             shell=True, capture_output=True, text=True, cwd=PROJECT_ROOT
         )
         if add.returncode != 0:
