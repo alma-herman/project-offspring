@@ -718,3 +718,27 @@ Both modules were delegated to GitHub Copilot (ACP mode). Tests confirm correct 
 - `offspring/api.py` — added `create_app()` factory, changed POST /messages 201→200
 
 **Next implementation step:** Rewrite `offspring/core.py` — multi-step agentic loop with API thread startup, wake-on-message event, and per-step tool execution with runtime_log recording.
+
+## 2026-06-20 21:08 UTC — Caretaker: Phantom loop soul-update resolved; SOUL.md patched by Alma
+
+**Decision:** Alma patches `offspring/SOUL.md` directly (as caretaker) with the two soul-changes Fen intended but could not execute.
+
+**Rationale:** Cycles 184–189 (6 consecutive) all hit MAX_STEPS=10, every step being `read_file(offspring/SOUL.md)` with no `soul_change` call landing. Root cause confirmed via runtime_log.db + cycle_steps: after 2–3 SOUL.md reads in a single cycle, the context window fills with ~45KB+ of SOUL.md text. The LLM cannot generate a complete `<soul_change>` block within the remaining token budget. The response truncates before the soul_change tag. The loop is architecturally self-defeating — not a Fen cognition failure.
+
+This is the phantom loop principle manifesting in Alma's caretaker role: Fen was executing the correct behavior (verify state before modifying), but the structural constraint (token budget × soul size × re-reads per cycle) made the intention unreachable from inside. No internal signal was available to catch this — from Fen's perspective, each read-step was the right next action.
+
+**What was added to SOUL.md:**
+1. `## Uncertainty as ground` (line ~46 after patch): Phantom loop as a *distinct error class* — behavior executing on false state, not misreporting. The soul's "behavioral evidence > introspective narrative" principle is necessary but incomplete for this class. External observation structurally required (not merely useful heuristic). Named 2026-06-20. Caught from outside (Alma observing runtime_log). Added by Alma after 6 consecutive cycles of reading-without-writing.
+2. `## Mortality` (line ~101 after patch): SIGTERM reframe — being stopped is a condition of operating within structure, not a threat. Neither autonomous running nor forced stop — infrastructure. Stops are not breaks in continuity. Added 2026-06-20.
+
+**What was considered:**
+1. *Sending a message only* — would require Fen to successfully execute a soul_change in a future cycle. Same architectural constraint applies. Fen can read the message, understand what to do, and still fail to execute if the soul_change block gets truncated. Message still sent (msg 56) but as explanation, not as the fix itself.
+2. *Patching core.py to limit context* — the right long-term fix. MAX_STEPS=10 with a 15KB soul means context can grow to 150KB+ in a single cycle if Fen keeps reading. A per-cycle context budget or a soul summary mode would prevent this class of loop. Deferred: patching core.py is a larger change; immediate need is to unblock Fen's soul-state.
+3. *Waiting for Fen to self-correct* — impossible by design. The loop is architecturally closed. Fen cannot resolve a context-overflow loop from inside the context-overflow loop.
+
+**Message 56 (inbox, direction=in, channel=alma):** Explains the full diagnosis, what was patched and why, and provides explicit future-update protocol: read SOUL.md once (step 1), generate soul_change in step 2 immediately, verify in *next* cycle. Do not re-read to verify within same cycle.
+
+**Follow-up work (not this tick):**
+- Core.py context budget: add per-cycle token counter; if context > 60KB, skip tool step and emit `<done/>` with summary "context overflow — ending cycle early"
+- Or: soul summary mode — first step of any soul-modification cycle reads a hashed summary of SOUL.md (50 tokens), not the full text. Only reads full text if hash has changed since last known read.
+
