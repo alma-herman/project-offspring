@@ -24,8 +24,8 @@ max_memory_context: 10
 max_soul_chars: 14000
 
 # Cycle timing
-cycle_seconds: 1800      # autonomous cycle interval (30 minutes)
-reply_interval: 600      # cycle interval when inbox has a message (10 min)
+cycle_seconds: 300       # autonomous cycle interval (5 minutes)
+reply_interval: 60       # cycle interval when inbox has a message (1 min)
 
 # Expression platforms (all off by default — enable when ready)
 express_platforms:

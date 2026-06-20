@@ -13,6 +13,7 @@ import os
 import re
 import signal
 import sys
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -50,6 +51,44 @@ LOCK_PATH = OFFSPRING_DIR / "offspring.lock"
 # Globals held at runtime (set in run(), used in signal handler)
 _lock_file = None
 _db = None
+
+# Wake event: set by SIGUSR1 handler to interrupt sleep early
+_wake_event = threading.Event()
+
+def _handle_wakeup(signum, frame):
+    """SIGUSR1: wake the daemon from its sleep immediately."""
+    print("[core.py] SIGUSR1 received — waking early.")
+    _wake_event.set()
+
+def _interruptible_sleep(seconds: float, inbox_path: Path, check_interval: float = 5.0) -> None:
+    """
+    Sleep for `seconds`, but return early if:
+    - SIGUSR1 arrives (_wake_event set), or
+    - offspring/INBOX.md mtime changes (new message written)
+    Polls every `check_interval` seconds.
+    """
+    deadline = time.monotonic() + seconds
+    try:
+        inbox_mtime = inbox_path.stat().st_mtime if inbox_path.exists() else 0.0
+    except OSError:
+        inbox_mtime = 0.0
+
+    _wake_event.clear()
+    while time.monotonic() < deadline:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        woken = _wake_event.wait(timeout=min(check_interval, remaining))
+        if woken:
+            _wake_event.clear()
+            return
+        try:
+            current_mtime = inbox_path.stat().st_mtime if inbox_path.exists() else 0.0
+        except OSError:
+            current_mtime = inbox_mtime
+        if current_mtime != inbox_mtime:
+            print("[core.py] Inbox changed — waking early.")
+            return
 
 
 @dataclass
@@ -610,9 +649,15 @@ def run():
     # Register signal handlers before acquiring lock
     signal.signal(signal.SIGTERM, handle_shutdown)
     signal.signal(signal.SIGINT, handle_shutdown)
+    signal.signal(signal.SIGUSR1, _handle_wakeup)
 
     # Single-instance guarantee
     _lock_file = acquire_lock()
+    # Write PID so PHP can send SIGUSR1 to wake us
+    try:
+        LOCK_PATH.write_text(str(os.getpid()))
+    except Exception:
+        pass
 
     # Load configuration
     cfg = load_config()
@@ -655,7 +700,7 @@ def run():
             _log_append(log_path, session_id, f"LLM call failed: {e}")
             wait_seconds = cfg.reply_interval if inbox else cfg.cycle_seconds
             print(f"[core.py] Sleeping {wait_seconds}s before next cycle.")
-            time.sleep(wait_seconds)
+            _interruptible_sleep(wait_seconds, inbox_path)
             continue
 
         # Parse response
@@ -684,7 +729,7 @@ def run():
         # Wait for next cycle
         wait_seconds = cfg.reply_interval if inbox else cfg.cycle_seconds
         print(f"[core.py] session:{session_id} complete. Sleeping {wait_seconds}s.")
-        time.sleep(wait_seconds)
+        _interruptible_sleep(wait_seconds, inbox_path)
 
 
 # ---------------------------------------------------------------------------
