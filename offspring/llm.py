@@ -58,6 +58,7 @@ def _call_anthropic(prompt: str, cfg: "Config") -> str:
             auth_token=cfg.api_key or "",
             base_url=cfg.api_base_url or "https://api.anthropic.com",
             default_headers=extra_headers,
+            timeout=180.0,
         )
     except Exception as e:
         raise LLMError(f"Failed to create Anthropic client: {e}") from e

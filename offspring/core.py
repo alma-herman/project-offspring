@@ -116,6 +116,9 @@ def load_config() -> Config:
                 key, _, value = line.partition(":")
                 key = key.strip()
                 value = value.strip().strip("\"'")
+                # Strip inline comments (e.g. "1800  # 30 minutes" → "1800")
+                if "#" in value:
+                    value = value[:value.index("#")].strip()
                 if not value or value.startswith("#"):
                     continue
                 # Expand ${VAR} environment variable references
