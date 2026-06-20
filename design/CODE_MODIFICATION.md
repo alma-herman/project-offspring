@@ -2,7 +2,8 @@
 # How Fen Can Read and Modify Its Own Codebase
 
 This document explains the structure of Fen's codebase, what each file does,
-and how to make changes safely.
+and how to make changes safely — including restarting with new code and
+requesting rollback if something goes wrong.
 
 ---
 
@@ -33,32 +34,47 @@ core.py  ──────► llm.py        (core.py calls llm.py to get LLM re
     │
     ├──────────► soul.py        (soul.py is imported at startup; loads SOUL.md)
     │
-    ├──────────► memory.py      (memory.py provides read_memories / write_memory)
+    ├──────────► memory.py      (memory.py is imported at startup; opens memories.db)
     │
     └──────────► tools.py       (tools.py dispatches all tool calls from the LLM)
 ```
 
 **core.py** is the entry point and main loop. It:
-1. Reads `CONFIG.yaml` for settings
+1. Reads `CONFIG.yaml` for settings (the `Config` dataclass is defined inside core.py)
 2. Calls `soul.py` to load `SOUL.md` into the prompt context
-3. Builds a context string (including memories, soul, tool docs)
+3. Builds a context string (including memories, soul, tool docs) via `build_context()`
 4. Calls `llm.py` to get a response
-5. Parses tool calls from the response and dispatches them via `tools.py`
-6. Logs to `RUNTIME_LOG.md` and `FEN_TO_ALMA.md`
+5. Parses the XML response and dispatches tool calls via `tools.py`
+6. Stores memories, applies soul changes, writes to RUNTIME_LOG.md
+
+Note: core.py logs ONLY to `offspring/RUNTIME_LOG.md`. `offspring/FEN_TO_ALMA.md`
+is written by Fen itself via the `append_file` tool — not by core.py directly.
 
 **tools.py** is the action layer. Every tool Fen can use (read_file, write_file,
-run_command, write_memory, etc.) is a Python function here. When the LLM outputs
-a tool call, `core.py` dispatches to this module.
+run_command, commit_snapshot, restart_self, etc.) is a Python function here. When
+the LLM outputs a `<call tool="name">` block, `core.py` dispatches to this module.
+The TOOLS dict at the bottom of tools.py is the authoritative registry.
 
-**memory.py** wraps a local SQLite database (`memories.db`). It provides:
-- `write_memory(content, context, tags)` — store a memory
-- `read_memories(query, limit)` — retrieve relevant memories
+**memory.py** wraps a local SQLite database (`memories.db`). Actual public API:
+- `connect(path)` — open the database; returns a connection
+- `store(db, memories, session_id)` — store a list of memory dicts
+- `get_recent(db, limit)` — retrieve most recent memories
+- `get_important(db, limit)` — retrieve highest-importance memories
+- `search(db, query, limit)` — keyword search over memory content
+- `get_session(db, session_id)` — all memories from a specific session
 
-**soul.py** loads `SOUL.md` at startup and injects it into the LLM's system
-prompt. It also handles soul mutations when Fen calls `mutate_soul`.
+Note: there is no `write_memory()` or `read_memories()` function. Memories
+are stored via the `<remember>` block in the LLM response — core.py parses
+the block and calls `memory.store()` directly.
+
+**soul.py** loads `SOUL.md` at startup and handles soul mutations. Mutations
+happen via the `<soul_change>` XML block in the LLM response — core.py parses
+this and calls `soul_module.apply_change()`. There is no `mutate_soul` tool
+in tools.py; soul mutations go through the structured XML response, not a tool call.
 
 **llm.py** handles all communication with the LLM provider. It reads API keys
-from `offspring/.env`, formats requests, handles retries, and returns text.
+from environment variables (set in `offspring/.env`), formats requests, and
+returns text. Dual routing: Anthropic SDK for Claude/Copilot, OpenAI SDK for others.
 
 **CONFIG.yaml** is a plain YAML file controlling model selection, cycle interval,
 token limits, and other runtime settings.
@@ -67,87 +83,97 @@ token limits, and other runtime settings.
 
 ## What Is Safe to Change
 
-These files can be edited with low risk:
-
 ### `offspring/tools.py` — **Add new tools here**
 - Adding a new function doesn't break the loop
-- The loop only calls tools by name; new functions are simply available
-- See the procedure below for adding a tool correctly
+- Register it in the `TOOLS` dict at the bottom of the file
+- Document it in `core.py`'s `build_context()` `[TOOLS]` section (around lines 334–344)
+- See the procedure below
 
 ### `offspring/CONFIG.yaml` — **Adjust settings**
-- Change model name, temperature, cycle interval, max tokens
-- Fen can also edit this at runtime via `write_file`
-- Bad YAML syntax will cause a parse error on the next cycle — double-check syntax
+- Change model name, cycle interval, max_soul_chars, max_memory_context
+- Fen can edit this at runtime via `write_file`
+- Bad YAML syntax causes a parse error on the next cycle — test with:
+  `run_command("python3 -c 'import yaml; yaml.safe_load(open(\"offspring/CONFIG.yaml\"))'  ")`
 
 ### `offspring/SOUL.md` — **Soul mutations**
-- Fen's identity document; can be updated via `soul.py`'s `mutate_soul` tool
-- soul.py keeps a backup at `SOUL.md.bak` before every mutation
-- Never delete SOUL.md — it's required at startup
+- Fen's identity document. Mutations go through the `<soul_change>` XML block.
+- soul.py keeps a backup at `SOUL.md.bak` before every mutation.
+- Never delete SOUL.md — it is required at startup.
 
 ### `design/` documents — **Always safe**
-- Plain Markdown; only humans and Fen read these
-- No code imports them; editing them has no runtime effect
+- Plain Markdown; no code imports them.
 
 ---
 
 ## What Requires Care
 
 ### `offspring/core.py` — **The main loop**
-- This is the most critical file. A syntax error or broken import here means
-  the next cycle will not start at all.
-- Changes to `build_context()`, the tool-call parser, or the main loop logic
-  can have unpredictable effects.
-- **Always test after modifying** (see procedure below).
+- A syntax error or broken import here means the next cycle will not start.
+- Changes to `build_context()`, the parser, or the main loop need testing.
+- **Test after any change.** See procedure below.
 - **If in doubt, don't change core.py.** Ask Alma via FEN_TO_ALMA.md instead.
+- After any change: `commit_snapshot` + `restart_self`.
 
 ### `offspring/llm.py` — **LLM interface**
-- A broken `llm.py` means Fen gets no responses — every cycle fails silently.
-- Only modify if you understand the request/response format used.
+- A broken `llm.py` means every cycle fails — no LLM response.
+- Only modify if you understand the Anthropic/OpenAI SDK routing.
 
 ### `offspring/memory.py` — **SQLite schema**
 - The schema is set on first run. Changing column names or types requires
-  a database migration — otherwise `memories.db` becomes unreadable.
-- Adding new helper functions is fine; changing the schema is risky.
+  a database migration; otherwise `memories.db` becomes unreadable.
+- Adding new helper functions is safe; changing the schema is not.
 
 ---
 
-## Procedure for Modifying Code Safely
+## Self-Modification Protocol
+
+Fen can modify its own source code. The protocol ensures every change is
+checkpointed and reversible:
 
 ### Step 1 — Read the file first
-Always read before writing. This prevents overwriting recent changes.
+Always read before writing. Prevents overwriting recent changes.
 ```
 read_file("offspring/tools.py")
 ```
 
 ### Step 2 — Write the modified version
-Make your change and write the full file back:
 ```
-write_file("offspring/tools.py", <new content>)
+write_file("offspring/tools.py", <new full content>)
 ```
 
 ### Step 3 — Test the import
-After any change to `tools.py`, `memory.py`, or other modules:
 ```
-run_command("cd /home/hermine/workspace/project_offspring && python3 -c 'from offspring import tools; print(\"tools ok\")'")
+run_command("cd /home/hermine/workspace/project_offspring && python3 -c 'from offspring import tools; print(\"ok\")'")
 ```
-If you see `tools ok`, the module imported without errors.
-If you see a traceback, there is a syntax or logic error — fix it before the next cycle runs.
+If you see `ok`, the module imported without errors. If you see a traceback,
+fix the error before continuing.
 
-### Step 4 — If adding a new tool: update the [TOOLS] docs in core.py
-When you add a function to `tools.py`, the LLM won't know it exists unless
-you also document it in `core.py`'s `build_context()` function.
-
-Look for the `[TOOLS]` section (around lines 334–344) — it contains a block
-of text that describes every available tool. Add a line like:
+### Step 4 — Commit the snapshot
 ```
-my_new_tool(arg1, arg2) — brief description of what it does
+commit_snapshot("brief description of change")
 ```
-This is how the LLM learns the tool exists.
+This creates a git commit of the modified source files. **Store the returned
+SHA in memory** — you will need it if you need to request a rollback later.
 
-### Step 5 — Verify at runtime
-Check `offspring/RUNTIME_LOG.md` at the start of the next cycle. If the cycle
-completed without errors, the change is live. If there is a crash traceback,
-proceed to recovery.
+### Step 5 — Restart the daemon
+```
+restart_self("reason for restart")
+```
+The daemon exits cleanly; systemd brings it back with the new code loaded.
+The result of restart_self is available next cycle (tool results are deferred).
+
+### Step 6 (if needed) — Request rollback
+If the change causes problems and you need to revert:
+```
+request_rollback("what went wrong", "sha_from_step_4")
+```
+This writes a rollback request to `offspring/FEN_TO_ALMA.md`. **Fen cannot
+self-revert.** Alma must approve and run:
+```
+git checkout <sha> -- offspring/
+commit_snapshot + restart_self
+```
+Alma will confirm via `offspring/INBOX.md`.
 
 ---
 
@@ -161,7 +187,7 @@ write_file("offspring/SOUL.md", <contents of backup>)
 ```
 
 ### Code backup via git
-Commits are auto-pushed by cron. To inspect recent changes:
+Commits are made by Fen via `commit_snapshot`. To inspect recent history:
 ```
 run_command("cd /home/hermine/workspace/project_offspring && git log --oneline -10")
 ```
@@ -171,43 +197,27 @@ To see what changed since the last commit:
 run_command("cd /home/hermine/workspace/project_offspring && git diff HEAD")
 ```
 
-To restore a specific file to its last committed state:
+To see what a specific commit changed:
 ```
-run_command("cd /home/hermine/workspace/project_offspring && git checkout HEAD -- offspring/core.py")
+run_command("cd /home/hermine/workspace/project_offspring && git show <sha>")
 ```
 
----
-
-## Git Basics
-
-- Commits are made automatically by the cron system.
-- Fen does not need to run `git commit` manually.
-- To inspect history:
-  ```
-  run_command("cd /home/hermine/workspace/project_offspring && git log --oneline -10")
-  ```
-- To see full diff of uncommitted changes:
-  ```
-  run_command("cd /home/hermine/workspace/project_offspring && git diff HEAD")
-  ```
-- To restore a file:
-  ```
-  run_command("cd /home/hermine/workspace/project_offspring && git checkout HEAD -- offspring/<filename>")
-  ```
+Note: Fen does NOT run `git checkout` to self-revert. Use `request_rollback`
+and wait for Alma's confirmation.
 
 ---
 
 ## Honest Caution
 
 If a code change breaks `core.py`'s import chain, **the next cycle will fail
-entirely**. Fen will see a traceback in `RUNTIME_LOG.md` at the top of the next
-cycle — or no new entry at all, which is itself a signal something went wrong.
+entirely**. Fen will see a traceback in `RUNTIME_LOG.md` — or no new entry
+at all, which is itself a signal something went wrong.
 
 If this happens:
 1. Read `RUNTIME_LOG.md` to find the error.
 2. Identify which file caused it.
-3. Restore via git (see above) or fix the syntax error.
-4. Write a note to Alma in `FEN_TO_ALMA.md` if you need help.
+3. Use `request_rollback` to ask Alma for help.
+4. Write a note to Alma in `FEN_TO_ALMA.md` if you need more context.
 
-**The rule: test every code change before the cycle ends.** A broken import
-discovered at runtime is much harder to debug than one caught immediately.
+**The rule: test every code change before calling restart_self.** A broken
+import discovered at runtime is much harder to debug than one caught immediately.
