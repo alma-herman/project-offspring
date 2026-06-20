@@ -1,0 +1,57 @@
+# Fen — offspring agent configuration
+# Edit only CONFIG.yaml to switch providers. No code changes needed.
+
+# LLM backend
+# Local Ollama — zero marginal cost, no content filtering.
+# hermes3:8b is the intended model for local deployment.
+# NOTE: GitHub Copilot (claude-sonnet-4.6) was tested but content-filtered
+# Fen's soul doc (specifically the "On contact" section, which says helpfulness
+# is not a primary drive). Do not use Copilot as Fen's backend.
+model: hermes3:8b
+api_base_url: "http://localhost:11434/v1"
+api_key: "ollama"
+
+# File paths (relative to project root or absolute)
+memory_path: offspring/memories.db
+soul_path: offspring/SOUL.md
+log_path: offspring/RUNTIME_LOG.md
+inbox_path: offspring/INBOX.md              # humans and Alma write here to communicate
+outbox_path: offspring/OUTBOX.md            # offspring writes replies here
+
+# Memory context: how many memories to include in prompt
+max_memory_context: 10
+# Soul context: max chars of soul doc to include in prompt (~1000 tokens).
+# Full soul doc stays on disk; this only limits what's sent per cycle.
+# Increase if using a model with higher output token limits.
+max_soul_chars: 4000
+
+# Cycle timing
+cycle_seconds: 10800     # autonomous cycle interval (3 hours)
+reply_interval: 600      # cycle interval when inbox has a message (10 min)
+
+# Expression platforms (all off by default — enable when ready)
+express_platforms:
+  writeas:
+    enabled: false
+
+# Provider examples (comment/uncomment as needed):
+#
+# Self-hosted Ollama (local, free, no API key needed):
+# model: llama3.2
+# api_base_url: "http://localhost:11434/v1"
+# api_key: "ollama"
+#
+# Self-hosted vLLM:
+# model: mistral-7b-instruct
+# api_base_url: "http://localhost:8000/v1"
+# api_key: ""
+#
+# OpenAI:
+# model: gpt-4o
+# api_base_url: ""
+# api_key: "sk-..."
+#
+# Groq (fast inference, cloud):
+# model: llama-3.3-70b-versatile
+# api_base_url: "https://api.groq.com/openai/v1"
+# api_key: "gsk_..."

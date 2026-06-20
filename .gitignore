@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+offspring/memories.db
+offspring/offspring.lock
+*.egg-info/
+.DS_Store
