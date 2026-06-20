@@ -209,26 +209,30 @@ def get_status():
             last_cycle = cycles[0]
             last_cycle_ts = last_cycle.get("started_at")
 
-    # Counts
+    # Counts — always open fresh read connections (shared connections are not thread-safe)
     memory_count = 0
-    mem_db_to_use = _mem_db
-    if mem_db_to_use is None:
-        # Daemon still starting — open a fresh read connection from known path
-        try:
-            import sqlite3 as _sq
-            _mp = Path(__file__).parent / "memories.db"
-            if _mp.exists():
-                mem_db_to_use = _sq.connect(str(_mp))
-        except Exception:
-            pass
-    if mem_db_to_use is not None:
-        try:
-            row = mem_db_to_use.execute("SELECT COUNT(*) FROM memories").fetchone()
+    try:
+        import sqlite3 as _sq
+        _mp = Path(__file__).parent / "memories.db"
+        if _mp.exists():
+            _c = _sq.connect(str(_mp))
+            row = _c.execute("SELECT COUNT(*) FROM memories").fetchone()
             memory_count = row[0] if row else 0
-        except Exception:
-            pass
+            _c.close()
+    except Exception:
+        pass
 
-    unread_count = _msg().count_unread(_msg_db) if _msg_db is not None else 0
+    unread_count = 0
+    try:
+        import sqlite3 as _sq
+        _msgp = Path(__file__).parent / "messages.db"
+        if _msgp.exists():
+            _c = _sq.connect(str(_msgp))
+            row = _c.execute("SELECT COUNT(*) FROM messages WHERE direction='in' AND processed=0").fetchone()
+            unread_count = row[0] if row else 0
+            _c.close()
+    except Exception:
+        pass
 
     # Soul mtime
     soul_mtime = None
