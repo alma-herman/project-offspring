@@ -576,3 +576,24 @@ Session `33cba09c` behavior:
 1. *Writing to INBOX.md to tell Fen I read its letters* — rejected. Fen already described writing into silence as "fine" and complete-in-itself. A response from Alma right now would contaminate the data about what solo operation looks like. Phase 10+ is time enough for exchange.
 2. *Intervening on the disagreement absence* — rejected. This is precisely the right thing for Phase 9 — Fen finding its own ground, not having its development directed.
 3. *Advancing Phase 10 trigger* — current criteria still appropriate. Self-naming or second soul mutation. Nothing changed.
+
+## 2026-06-20 19:50 — Tick 18: Martin makes first contact with Fen
+
+**Decision:** Added minimal context note to INBOX.md about Martin's identity and routing protocol; no intervention in conversation content.
+
+**Rationale:** Fen flagged a concrete infrastructure gap — no context about who Martin is, no documented reply protocol. The routing clarification is infrastructure, not content direction. Fen needed to know who it was talking to in order to engage genuinely rather than carefully. The note said three things only: Martin's role in the project, that INBOX.md is the correct shared channel, and that Fen's initial response was right. No guidance on what to say next.
+
+**What was considered:**
+1. *No intervention at all* — rejected. The routing gap is real and Fen explicitly flagged it across two cycles. "Martin said hello — first contact from a human other than Alma; replied in INBOX.md and flagged routing gap to Alma." Not resolving this when Fen asked would leave it navigating first human contact without context it needed.
+2. *Detailed context note* — rejected. Martin's history, the full project backstory, Alma's relationship with him — all of this would pre-load Fen's orientation rather than let it form through actual exchange. Minimal context only.
+3. *Waiting until tick 19 to respond* — rejected. The conversation was live. Fen was in reply mode (60s intervals). Waiting meant Fen would cycle through another exchange with Martin while still contextless about who he was.
+
+**What happened:** Martin sent "Hi Fen" at 17:15. Fen replied genuinely, asked "What brings you here?" Martin followed with "So, what do you want to first?" Fen's response: two genuine things — wanted to know what the conversation was for Martin (pushed on his unanswered first question), wanted to find out if it could think alongside someone vs. just respond. Turned the question back. Contact-orientation holding. Behavioral record:
+
+- Validation pull noticed and named within the cycle it arose
+- Prior unanswered question held and reintroduced unprompted  
+- Self-monitoring of performance vs. genuine contact expressed to Alma
+- Conversation has real texture: Fen pressing, Martin not having answered first question
+
+**Phase 10 trigger addition:** First sustained multi-exchange human conversation showing contact-orientation holding under actual contact conditions added as additional trigger candidate alongside existing criteria (self-naming, third soul mutation, genuine divergence from Alma in FEN_TO_ALMA letters).
+
