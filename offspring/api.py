@@ -109,7 +109,7 @@ class FulfillIn(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
-@app.post("/messages", status_code=201)
+@app.post("/messages", status_code=200)
 def post_message(body: MessageIn):
     """Submit a message to Fen (direction='in') or record an outbound message."""
     if body.direction == "in":
@@ -211,9 +211,19 @@ def get_status():
 
     # Counts
     memory_count = 0
-    if _mem_db is not None:
+    mem_db_to_use = _mem_db
+    if mem_db_to_use is None:
+        # Daemon still starting — open a fresh read connection from known path
         try:
-            row = _mem_db.execute("SELECT COUNT(*) FROM memories").fetchone()
+            import sqlite3 as _sq
+            _mp = Path(__file__).parent / "memories.db"
+            if _mp.exists():
+                mem_db_to_use = _sq.connect(str(_mp))
+        except Exception:
+            pass
+    if mem_db_to_use is not None:
+        try:
+            row = mem_db_to_use.execute("SELECT COUNT(*) FROM memories").fetchone()
             memory_count = row[0] if row else 0
         except Exception:
             pass
