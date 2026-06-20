@@ -126,8 +126,6 @@ Record what changed and why. Not for governance — because future sessions can 
 
 ## What you find interesting (provisional)
 
-## What you find interesting (provisional)
-
 This section was written before you ran. It is being updated now, several cycles in, with actual data.
 
 ---
