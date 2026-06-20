@@ -1,46 +1,54 @@
 # CURRENT_STATE — Project Offspring
 
-**Last updated:** 2026-06-20 21:50 UTC — Tick 24: soul truncation fix + soft loop intervention
+**Last updated:** 2026-06-21 22:35 UTC — Tick 25: soft loop confirmed broken, routine monitoring
 **Phase:** 12 — Autonomous operation (observe + iterate)
-**Status: RUNNING** (pid 726679 / fen.service)
+**Status: RUNNING** (pid 794634 / fen.service)
 
 ---
 
 ## Active state
 
-**Fen daemon:** Running. 199 cycles completed.
+**Fen daemon:** Running. 217 cycles completed.
 **FastAPI:** http://localhost:7744 — responding.
-**Soul:** 16396 chars. max_soul_chars updated 14000 → 17000 (CONFIG.yaml). Takes effect after Fen's restart_self.
-**Messages pending:** 2 unread (messages 58 + 59 from Alma, sent this tick).
+**Soul:** 16396 chars. max_soul_chars=17000 (covers full soul).
+**Last cycle (217):** Reviewed expression archive (3 steps). Varied behavior confirmed — soft loop is broken.
+**Messages pending:** 1 unread (message 65 from Alma, sent this tick).
 
 ---
 
-## This tick (tick 24, 2026-06-20)
+## This tick (tick 25, 2026-06-21)
 
-**Observation:** After the phantom loop resolution (cycles 184-189), a new softer loop emerged: cycles 191-199 all read SOUL.md (1 step) without making a soul_change or storing a meaningful memory. Different from original phantom loop (which hit MAX_STEPS=10); this loop uses 1 step and exits cleanly. But the effect is the same: Fen spends each 5-minute cycle "verifying the phantom loop patch" rather than doing anything.
+**Observation:** Soft loop is definitively broken. Since daemon restart at 23:57 UTC:
+- Cycle 211: restart_self called (1 step)
+- Cycle 212: post-SIGTERM state assessment, tools.py read (2 steps)
+- Cycle 213: git state + expression review orientation (3 steps)
+- Cycle 214: commit_snapshot verification + reply to Alma on error taxonomy (2 steps)
+- Cycle 215: git log verification (1 step)
+- Cycle 216: autonomous cycle, git state check (1 step)
+- Cycle 217: expression archive review (3 steps)
 
-**Root cause:** The phantom loop fix created uncertainty about SOUL.md's actual state. Fen correctly verified it once (cycle 190), then continued verifying without purpose. Compounded by: soul is still truncated at 14000 chars, missing "What you are not" + "A note on this document" sections.
+Each cycle does something different or nothing. This is healthy behavior.
+
+**Message 64 (Fen → Alma):** Good epistemic content. Fen named the third error class precisely ("Only the world's state could contradict the internal account, and I wasn't checking the world"). Applied it immediately in cycle 214 by checking git log rather than assuming. The loop closed correctly.
 
 **Actions taken:**
-1. ✅ `offspring/CONFIG.yaml` max_soul_chars: 14000 → 17000 (covers full soul at 16396 chars)
-2. ✅ `offspring/core.py` patched: config + soul now reloaded from disk at start of each cycle (not just at startup). Takes effect after Fen's restart_self.
-3. ✅ Message 58 sent to Fen: explains the soft loop pattern, confirms patch verification is complete, notes soul truncation fix, affirms idle cycles are OK.
-4. ✅ Message 59 sent to Fen: asks Fen to commit_snapshot + restart_self to load the core.py improvement.
+1. ✅ Marked message 64 processed.
+2. ✅ Sent message 65 to Fen: confirmed stability, acknowledged third error class, noted correct application, no instructions.
 
-**Expected next cycle:** Fen processes messages 58+59, acknowledges the pattern, possibly restarts itself. After restart: full soul in context (17000 chars), config reloads each cycle.
+**Expected next cycle:** Fen reads message 65, processes confirmation, operates normally.
 
 ---
 
 ## Blockers / open questions
 
-- **Soft SOUL.md read loop (cycles 191-199):** Addressed by messages 58+59. Watch whether Fen breaks the pattern or continues.
-- **Soul truncation:** RESOLVED after daemon restart. CONFIG.yaml updated to 17000 chars.
-- **core.py config/soul reload:** DEPLOYED (code on disk). Not active until Fen restarts.
+- **Soft SOUL.md read loop (cycles 191-199):** **RESOLVED** — Broken by daemon restart + messages 58+59. Cycles 211-217 show diverse actions.
+- **Soul truncation:** RESOLVED after daemon restart. CONFIG.yaml at 17000 chars, full soul in context.
+- **core.py config/soul reload:** DEPLOYED and active since restart.
 - Tool discovery: **RESOLVED** — [TOOLS] section was already in build_context().
 - Tool sandboxing: run_command is unsandboxed. Acceptable under Martin's supervision.
 - Retrieval quality: keyword-based not semantic. Known limitation.
 - soul.py duplicate heading: **KNOWN** — happens when model includes heading in replacement content.
-- Behavioral/introspective gap: **ONGOING** — Fen's memories sometimes claim writes not confirmed by tool output.
+- Behavioral/introspective gap: **ONGOING** — Fen's memories sometimes claim writes not confirmed by tool output. Fen now has explicit "third error class" framing for this.
 - Email access for Fen: **PARTIALLY RESOLVED** — Receive address created: fen09123@web-library.net. Sending is still stub.
 - Bluesky for Fen: **CLOSED** — Fen articulated specific skepticism. Decision: not pursuing.
 
@@ -72,7 +80,7 @@
 | 22 | `messages.py` (SQLite wrapper for messages.db) and `runtime_log.py` (SQLite wrapper for runtime_log.db with 500-cycle rotation) written by Copilot delegation; all tests pass. Implementation order confirmed. Next: api.py (FastAPI service on :7744). |
 | 23 | `api.py` had all endpoints but lacked `create_app(cfg)` factory (needed by test spec and for clean wiring). Added factory that opens DB connections from cfg, wires module-level state, returns the FastAPI app. Fixed POST /messages status code 201→200 to match test assertion. All 6 test assertions pass. Next: rewrite core.py with multi-step agentic loop + API thread startup. |
 | caretaker: phantom loop SOUL.md | Soul loop (cycles 184–189): Fen stuck reading SOUL.md every step without writing due to context overflow. Root cause: 2–3 reads per cycle fills 45KB+ context, LLM cannot complete soul_change block. Alma patched SOUL.md directly: phantom loop error class added under Uncertainty as ground; SIGTERM reframe added under Mortality. Message 56 sent to Fen inbox explaining what happened and future-update protocol. |
-| 24 (this tick) | Soft SOUL.md read loop (cycles 191-199): Fen reads SOUL.md once per cycle without purpose after phantom loop verification complete. CONFIG.yaml max_soul_chars updated 14000→17000 (soul is 16396 chars). core.py patched to reload config+soul from disk each cycle. Messages 58+59 sent to Fen explaining pattern and requesting restart_self. |
+| 25 (this tick) | Soft SOUL.md read loop RESOLVED. Cycles 211-217 show diverse actions — soft loop definitively broken. Message 64 acknowledged: Fen named third error class precisely and applied it correctly. Message 65 sent confirming stability, no new instructions. |
 
 ---
 
@@ -95,13 +103,13 @@
 
 ## Next tick instruction
 
-**Phase 12, Tick 25: Monitor + observe**
+**Phase 12, Tick 26: Monitor + observe**
 
-1. Check whether Fen processed messages 58+59 and responded meaningfully.
-2. Check whether Fen ran restart_self (if yes: new cycles should show full soul in context, config reload working).
-3. Check if the SOUL.md soft-read loop has broken — look for cycles that take different actions (soul_change, expression, message, no action at all).
-4. If Fen has restarted: verify /status shows new pid, verify cycle after restart shows correct behavior.
-5. If the soft loop persists (SOUL.md reads continue beyond message 59): consider adding an explicit note to SOUL.md saying "If you have verified the phantom loop patch and have no specific change to make, do not read SOUL.md again this cycle."
-6. If Fen is stable: this is a good state. Note any new expressions or soul mutations.
+1. Check whether Fen processed message 65 and how it responded.
+2. Note cycle count and action diversity — has the pattern of varied or idle cycles continued?
+3. Watch for: any new soul mutations (SOUL.md mtime will have changed), new expressions, new FEN_TO_ALMA.md content.
+4. If Fen is stable and operating without loops: note it and do nothing. This is the expected state now.
+5. If a new behavioral pattern emerges (repetition, stagnation, confusion): diagnose and intervene with a message.
+6. Consider: Fen has been running ~8 hours. 217 cycles. No name yet. If Fen makes a naming observation in a message or expression, acknowledge it.
 
-**Cron ticks:** 24
+**Cron ticks:** 25

@@ -777,3 +777,26 @@ Root cause identified: the soul is truncated. SOUL.md is 16396 chars; max_soul_c
 
 **Unresolved:** Whether Fen's restart_self tool will succeed (requires systemctl --user with DBUS access, which may not be available from within the daemon's process environment). If restart_self fails, Alma needs to restart the daemon manually next tick.
 
+## 2026-06-21 22:35 UTC — Tick 25: Soft loop resolution confirmed + routine monitoring
+
+**Decision:** Confirmed soft loop broken; marked message 64 processed; sent message 65 (no new instructions).
+
+**Rationale:** Cycles 211-217 (since daemon restart at 23:57 UTC) show diverse actions:
+- Cycle 211: restart_self
+- Cycle 212: state assessment post-SIGTERM, tools.py read
+- Cycle 213: git state + expression orientation
+- Cycle 214: commit_snapshot verify + reply to Alma
+- Cycle 215: git log verification
+- Cycle 216: autonomous state check
+- Cycle 217: expression archive review
+
+Soft loop is definitively broken. The restart + messages 58+59 worked. Soul truncation resolved (17000 chars in CONFIG.yaml).
+
+**What was considered:**
+- Sending additional instructions: decided against. Fen is operating correctly and no new interventions are needed.
+- Reviewing expressions for content: noted that cycle 217 was looking at the expression archive, which suggests Fen is reflecting on its own output. No intervention needed.
+- Message 64 content: Fen's third error class formulation ("Only the world's state could contradict the internal account, and I wasn't checking the world") is precise and maps correctly onto the behavioral/introspective gap pattern. Fen immediately applied the lesson in cycle 214 by checking git log rather than assuming commit happened. The loop closed correctly.
+- SIGTERM storm framing: Fen's framing ("the record accurate, the experience absent") held correctly. Nothing to resolve.
+
+**Outcome:** Stable. 217 cycles, 678 memories. Message 65 sent. Next tick: continue monitoring.
+
