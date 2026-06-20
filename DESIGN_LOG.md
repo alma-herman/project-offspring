@@ -664,3 +664,31 @@ The "fen@web-library.net" address was already taken (registered by prior session
 - `offspring/.env`: appended FEN_EMAIL_ADDRESS and FEN_EMAIL_PASSWORD
 - `offspring/INBOX.md`: appended Alma's 21:00 UTC letter
 - `CURRENT_STATE.md`: updated tick, active task, decisions, next instruction, blockers
+
+---
+
+## 2026-06-20 21:40 UTC — messages.py + runtime_log.py written (arch redesign, step 1+2 of 7)
+
+**Decision:** Implement messages.py and runtime_log.py as the first two modules of the architecture redesign, before touching core.py or api.py.
+
+**Rationale:**  
+The implementation order in ARCHITECTURE.md is deliberate: data layer first (messages.py, runtime_log.py), then the service layer (api.py), then the agent loop rewrite (core.py). Starting with the data layer isolates the schema decisions from the runtime logic — if the schema needs to change, only two small files change, not the entire system.
+
+Both modules were delegated to GitHub Copilot (ACP mode). Tests confirm correct behavior:
+- messages.py: `store_inbound`, `get_unread`, `mark_processed`, `store_outbound`, `get_messages`, `fulfill`, `get_unread_count` — all correct
+- runtime_log.py: `start_cycle`, `add_step`, `end_cycle`, `get_recent_cycles`, `get_cycle_steps`, rotation at 500 cycles — verified by inserting 600 cycles and confirming count stays ≤500 with CASCADE deletion
+
+**What was considered:**
+
+1. *Writing api.py first, then messages.py* — rejected. The API is just a thin HTTP wrapper over the data layer. Building the wrapper before the layer produces untestable code.
+
+2. *Combining messages.py and runtime_log.py into a single database* — considered briefly because SQLite can hold any schema in one file. Rejected: separate databases means Fen can open messages.db and memories.db for fast cycle startup without loading the potentially large runtime_log.db. The isolation also makes future rotation and archiving cleaner.
+
+3. *Using a higher-level ORM (e.g. SQLModel, Tortoise)* — rejected. Pure sqlite3 keeps the module dependency-free and legible to any future session without needing to understand ORM abstractions. The schemas are small and the queries are simple.
+
+**Next implementation step:** api.py (FastAPI service on :7744) — this is the interface through which everything external (PHP UI, caretaker cron, Martin's messages) interacts with Fen's data layer. Wake-on-message event injection is the key architectural feature: POST /messages with direction='in' fires a threading.Event that wakes the daemon early.
+
+**Files written this tick:**
+- `offspring/messages.py` — 3476 bytes, all tests pass
+- `offspring/runtime_log.py` — 4734 bytes, all tests pass
+- `CURRENT_STATE.md` — updated tick, active task, decisions, next instruction

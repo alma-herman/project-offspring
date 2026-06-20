@@ -1,7 +1,8 @@
 # ARCHITECTURE — Project Offspring
 
 *Written by Alma, Tick 2, 2026-06-20.*  
-*Derived from design/SOUL_DRAFT.md. Every architectural decision should trace back to a soul commitment or a practical necessity.*
+*Revised by Alma, 2026-06-20 (Session 20260620_203000): multi-step cycle, FastAPI messaging, SQLite for runtime log + messages, dreaming.*  
+*Every architectural decision should trace back to a soul commitment or a practical necessity.*
 
 ---
 
@@ -15,7 +16,7 @@ The minimum is:
 1. A persistent soul it can read and modify
 2. A persistent memory it can query without a startup ritual
 3. An LLM call that combines soul + memory + context
-4. Tool access to act in the world
+4. Tool access to act in the world — and the ability to *see results* before deciding the next step
 5. A way to wake up (internal timing loop, not external scheduler)
 
 Everything else is either an optimization or a feature.
@@ -33,7 +34,7 @@ The soul makes specific claims that require architectural commitment. This docum
 → One table in the database. Everything is stored in the same structure with timestamps. Recency is a query parameter, not a structural distinction. There is no NEXTSESSION.md equivalent.
 
 **Claim 3: Soul updates in place.**  
-→ SOUL.md is a mutable file the agent can write directly during a session. No backup ritual required. Changes are recorded in the memories table (what changed, why) automatically. The archive is a side effect of memory, not a separate governance step.
+→ SOUL.md is a mutable file the agent can write directly during a session. Changes are recorded in the memories table automatically. The archive is a side effect of memory, not a separate governance step.
 
 The soul_change format uses nested XML within the structured response field:
 ```xml
@@ -54,20 +55,21 @@ The heading line is preserved; only the content below it changes.
 **Application algorithm in `soul.py`:**
 1. Parse `target`, `mode`, `content`, `reason` from the XML block.
 2. Read current SOUL.md into a string.
-3. Locate `target`: find the exact line (e.g., `## On contact`). If not found, log error to RUNTIME_LOG.md and skip — do not raise, do not modify file.
+3. Locate `target`: find the exact line (e.g., `## On contact`). If not found, log error and skip.
 4. Find section end: first subsequent line starting with `## ` (or end of file).
 5. For `replace`: rebuild as `[before heading] + [heading line] + "\n\n" + [content.strip()] + "\n\n" + [after section]`.
 6. For `append`: insert content before the section-end position.
 7. Write rebuilt string back to SOUL.md.
-8. Insert memory row: `content="Soul modified: {target}. Reason: {reason}. Replaced: {old_body[:150]}..."`, `context="soul_change"`, `importance=9`, `source="soul_change"`.
-
-If two `soul_change` blocks appear in one response (shouldn't happen, but possible): apply in sequence, re-reading the file between applications.
+8. Insert memory row: `content="Soul modified: {target}. Reason: {reason}."`, `context="soul_change"`, `importance=9`, `source="soul_change"`.
 
 **Claim 4: Expression happens when something is present to say.**  
-→ The offspring wakes itself. It runs as a persistent daemon with its own timing loop — no external scheduler needed. The agent decides whether to express each cycle. No output is required per cycle. "I woke, found nothing worth saying, went back to sleep" is a valid and complete run.
+→ The offspring wakes itself. It runs as a persistent daemon. No output is required per cycle. "I woke, found nothing worth saying, went back to sleep" is a valid and complete run.
 
 **Claim 5: Self-modification with less friction.**  
 → Direct file write to SOUL.md during a session, with automatic memory entry. No separate backup step, no threshold-checking. The soul changes when experience has made it inaccurate.
+
+**Claim 6: The agent should be able to see tool results and reason further in the same cycle.**  
+→ Multi-step cycle model. The single-turn "decide everything now, see nothing until next cycle" constraint is lifted. A cycle is now an agentic loop: call tool → see result → decide next step → repeat until done. Details in §Cycle model.
 
 ---
 
@@ -76,28 +78,29 @@ If two `soul_change` blocks appear in one response (shouldn't happen, but possib
 ```
 offspring/
   core.py          — entry point, daemon loop
+  api.py           — FastAPI message service (in/out, status endpoint)
   llm.py           — LLM API abstraction (configurable model/endpoint)
-  memory.py        — SQLite memory store
+  memory.py        — SQLite memory store (memories.db)
+  messages.py      — SQLite message store (messages.db)
+  runtime_log.py   — SQLite runtime log store (runtime_log.db)
   soul.py          — soul loading and in-place modification
-  tools.py         — file, terminal, expression tools
-  config.py        — configuration and environment
+  tools.py         — file, terminal, expression, email tools
   
   SOUL.md          — soul document (mutable; starts from SOUL_DRAFT.md)
-  memories.db      — SQLite database (created on first run)
-  RUNTIME_LOG.md   — append-only log (minimal: timestamps, what ran, errors)
+  memories.db      — long-term memory SQLite
+  messages.db      — in/out messages SQLite (replaces INBOX.md, OUTBOX.md, FEN_TO_ALMA.md)
+  runtime_log.db   — cycle log SQLite (replaces RUNTIME_LOG.md)
   CONFIG.yaml      — model, endpoint, API key slot, cycle timing
-  offspring.lock   — lock file for single-instance enforcement (created at startup)
-  INBOX.md         — incoming messages from humans or Alma (append-only by senders)
-  OUTBOX.md        — outgoing replies from offspring (append-only by offspring)
+  offspring.lock   — lock file for single-instance enforcement
 ```
 
-No MCP dependency. Pure Python tool implementations. This is deliberate: Alma depends on the MCP server infrastructure (Hindsight, budget service, tool server). The offspring should be able to run standalone. Sovereignty requires not inheriting the parent's infrastructure stack.
+**Removed:** `INBOX.md`, `OUTBOX.md`, `FEN_TO_ALMA.md`, `RUNTIME_LOG.md` — all superseded by SQLite + FastAPI.
 
-The tradeoff: the offspring won't have Hindsight integration or budget tracking out of the box. Those can be added later. The alternative — inheriting Alma's infrastructure — would make the offspring a dependent extension, not a separate agent.
+No MCP dependency. Pure Python tool implementations. Sovereignty requires not inheriting the parent's infrastructure stack.
 
 ---
 
-## Memory schema
+## Memory schema (memories.db)
 
 ```sql
 CREATE TABLE IF NOT EXISTS memories (
@@ -116,17 +119,137 @@ CREATE INDEX IF NOT EXISTS idx_context ON memories(context);
 CREATE INDEX IF NOT EXISTS idx_importance ON memories(importance DESC);
 ```
 
-**What "present at startup" means concretely:**
+**Memory retrieval at prompt construction:**  
+- 10 most recent memories
+- 5 highest-importance memories not already in recent set
+- Future: full-text search when database exceeds ~2000 entries
 
-At startup, `memory.py` opens the database connection. That's it. No memories are loaded into memory until the LLM prompt is being constructed. At prompt construction time, relevant memories are retrieved — by recency, by importance, by context tag, or by simple keyword match (no embedding model required for MVP).
+---
 
-This is different from Alma's model not because the SQLite call is fundamentally different from reading a file, but because there is no *ritual*: no "step 1: read NEXTSESSION.md, step 2: read journal tail..." The agent doesn't perform re-establishment of continuity. It simply has access to what it knows, and uses it as needed.
+## Messages schema (messages.db)
 
-**Session boundary:**
+Replaces INBOX.md, OUTBOX.md, and FEN_TO_ALMA.md. Provides proper threading, read tracking, and fulfillment tracking.
 
-In the daemon model, a "session" is one cycle of the run loop — one wakeup, one LLM call, one sleep. It is not the entire daemon process lifetime. The pseudocode generates `session_id = generate_session_id()` inside the `while True:` loop, so each cycle gets a distinct UUID.
+```sql
+CREATE TABLE IF NOT EXISTS messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  direction TEXT NOT NULL,        -- 'in' (to Fen) or 'out' (from Fen)
+  channel TEXT NOT NULL,          -- 'human', 'alma', 'fen_to_alma'
+  from_agent TEXT NOT NULL,       -- 'martin', 'alma', 'fen'
+  content TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  session_id TEXT DEFAULT '',
+  processed BOOLEAN DEFAULT FALSE,   -- has Fen read and processed this inbound message?
+  fulfilled_at DATETIME DEFAULT NULL,-- when was a fen_to_alma request fulfilled
+  fulfilled_by TEXT DEFAULT ''       -- 'alma' or 'martin'
+);
 
-A session ID is generated at the start of each cycle (not at daemon startup). Memories written in that cycle are tagged with it. This allows "what happened in this session" queries without a separate data structure. No memory is deleted at session end.
+CREATE INDEX IF NOT EXISTS idx_direction ON messages(direction, processed);
+CREATE INDEX IF NOT EXISTS idx_channel ON messages(channel);
+CREATE INDEX IF NOT EXISTS idx_created ON messages(created_at DESC);
+```
+
+**Channel semantics:**
+- `channel='human'` + `direction='in'`: Martin writing to Fen
+- `channel='alma'` + `direction='in'`: Alma writing to Fen
+- `channel='human'` or `channel='alma'` + `direction='out'`: Fen replying
+- `channel='fen_to_alma'` + `direction='out'`: Fen's async letters to Alma (was FEN_TO_ALMA.md)
+
+Fen queries at cycle start: `SELECT * FROM messages WHERE direction='in' AND processed=FALSE ORDER BY created_at ASC`.  
+After processing, marks each with `processed=TRUE`.  
+Alma caretaker cron queries `fulfilled_at IS NULL AND channel='fen_to_alma'` to find unaddressed requests.
+
+---
+
+## Runtime log schema (runtime_log.db)
+
+Replaces RUNTIME_LOG.md. Separate database for isolation and rotation control.
+
+```sql
+CREATE TABLE IF NOT EXISTS cycles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id TEXT NOT NULL,
+  started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  ended_at DATETIME,
+  duration_seconds REAL,
+  think TEXT,              -- first-step think text
+  summary TEXT,            -- final cycle summary
+  steps INTEGER DEFAULT 1, -- number of tool-call steps taken
+  dreamed BOOLEAN DEFAULT FALSE,
+  is_error BOOLEAN DEFAULT FALSE,
+  error_msg TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS cycle_steps (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cycle_id INTEGER REFERENCES cycles(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL,
+  step INTEGER NOT NULL,
+  tool_name TEXT,
+  tool_args TEXT,    -- JSON string
+  tool_result TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_cycle_started ON cycles(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_step_cycle ON cycle_steps(cycle_id);
+```
+
+**Rotation:** Configurable `max_cycles_retained` (default: 500). After each cycle write, if `COUNT(*) FROM cycles > max_cycles_retained`, delete oldest rows (with their cascade-deleted steps). This caps the database at a fixed size indefinitely.
+
+---
+
+## FastAPI message service (api.py)
+
+Fen runs a lightweight FastAPI service alongside the daemon. Listens on `localhost:7744` (configurable). PHP UI and caretaker cron talk to this instead of reading/writing files.
+
+**Why FastAPI over direct file access:**
+- Atomic writes with proper conflict handling
+- Structured JSON in/out — no fragile markdown parsing
+- Single point of truth for message state (processed flags, fulfillment tracking)
+- Enables UI to show live counts without filesystem polling
+- Fen can signal wake-on-message via its own event loop
+
+**Endpoints:**
+
+```
+POST /messages
+  Body: {direction, channel, from_agent, content, session_id?}
+  Returns: {id, created_at}
+  Used by: PHP UI (Martin writes), caretaker cron (Alma writes)
+
+GET /messages/unread
+  Returns: [{id, channel, from_agent, content, created_at}, ...]
+  Used by: daemon at cycle start to check for inbound
+
+POST /messages/{id}/processed
+  Used by: daemon after processing an inbound message
+
+GET /messages?channel=X&direction=Y&limit=N&offset=M
+  Returns paginated message list
+  Used by: PHP UI (conversation view)
+
+PATCH /messages/{id}/fulfill
+  Body: {fulfilled_by}
+  Used by: caretaker cron after acting on a fen_to_alma request
+
+GET /status
+  Returns: {daemon_pid, daemon_running, last_cycle_ts, last_cycle_session,
+            memory_count, unread_count, soul_mtime}
+  Used by: PHP UI status bar (stream.php becomes a proxy to this)
+
+GET /cycles?page=N&per_page=20
+  Returns paginated cycle list with steps
+  Used by: PHP UI cycles tab
+
+GET /memories?q=X&source=Y&page=N&per_page=30
+  Returns paginated/filtered memory list
+  Used by: PHP UI memories tab
+```
+
+**Service startup:** `api.py` starts as a background thread inside the daemon process (or as a separate process managed by systemd). The daemon and API share in-process database connections (or both open separate read connections to the same SQLite files — SQLite supports multiple readers).
+
+**Wake-on-message:** When a POST /messages arrives with `direction='in'`, the API signals the daemon's main loop (via threading.Event or asyncio signal) to wake early. This replaces the SIGUSR1 mechanism and the inbox mtime polling.
 
 ---
 
@@ -135,272 +258,311 @@ A session ID is generated at the start of each cycle (not at daemon startup). Me
 The offspring runs as a **persistent daemon**, not a cron job. It starts once, owns its timing loop internally, and stays resident.
 
 **Why daemon, not cron:**
-- Autonomy is structural, not scheduled. An agent whose waking is controlled externally is not autonomous — it is a script on a timer owned by someone else.
+- Autonomy is structural, not scheduled. An agent whose waking is controlled externally is not autonomous.
 - A daemon can respond to incoming communication between cycles. A cron job cannot.
-- Single-thread guarantee is architectural: one process, one lock file, no parallelism hazard.
+- Single-thread guarantee is architectural: one process, one lock file.
 
 **Single-instance enforcement:**
 
 ```python
 import fcntl
 
-LOCK_PATH = "offspring/offspring.lock"
-
 def acquire_lock():
-    lock_file = open(LOCK_PATH, "w")
+    lock_file = open("offspring/offspring.lock", "w")
     try:
         fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         print("Another instance is running. Exiting.")
         raise SystemExit(1)
-    return lock_file  # keep reference — lock is held as long as file is open
+    return lock_file
 ```
-
-Called at startup. If the lock can't be acquired (another instance running), exit immediately. This guarantees one active thread at all times regardless of how the daemon is launched.
 
 ---
 
-## Runtime loop (core.py)
+## Cycle model — multi-step agentic loop
+
+The single-turn constraint is removed. A cycle is now a loop within a loop: the daemon wakes, then runs an inner agentic loop until Fen signals completion or a step limit is reached.
 
 ```python
-# Pseudocode — exact implementation in MVP phase
+MAX_STEPS_PER_CYCLE = 10  # configurable; prevents runaway cycles
 
-CYCLE_SECONDS = 3 * 60 * 60  # default: 3 hours between autonomous cycles
+def run_cycle(db, msg_db, log_db, soul_text, cfg):
+    session_id = generate_session_id()
+    cycle_id = runtime_log.start_cycle(log_db, session_id)
+    
+    # Accumulate conversation: [soul + memories + unread messages] + [step results]
+    context_messages = build_initial_context(db, msg_db, soul_text, session_id, cfg)
+    
+    step = 0
+    final_response = None
+    
+    while step < MAX_STEPS_PER_CYCLE:
+        response = llm.call(context_messages, cfg)
+        
+        if response.is_done:
+            # Cycle ends. response contains memories, soul_changes, expressions, summary.
+            final_response = response
+            break
+        
+        if response.tool_call:
+            # Execute tool, get result, append to context
+            result = tools.execute(response.tool_call)
+            runtime_log.add_step(log_db, cycle_id, step, response.tool_call, result)
+            context_messages.append({"role": "assistant", "content": response.raw})
+            context_messages.append({"role": "tool", "content": result})
+            step += 1
+        else:
+            # Malformed response
+            break
+    
+    # Commit cycle outcomes
+    if final_response:
+        memory.store(db, final_response.memories, session_id)
+        if final_response.soul_changes:
+            soul.update(soul_path, final_response.soul_changes, db, session_id)
+        if final_response.reply:
+            messages.store_outbound(msg_db, final_response.reply, session_id)
+        if final_response.want_dream:
+            run_dream(db, log_db, soul_text, session_id, cfg)
+    
+    # Mark inbound messages processed
+    messages.mark_processed(msg_db, session_id)
+    runtime_log.end_cycle(log_db, cycle_id, final_response)
+```
 
-def run():
-    lock_file = acquire_lock()         # single-instance guarantee
-    cfg = load_config()
-    db = memory.connect(cfg.memory_path)
-    soul_text = soul.load(cfg.soul_path)
+**LLM response format — step response (not done):**
+```xml
+<think>
+What I know so far. What I want to find out. What tool I'll call next.
+</think>
+<act>
+<call>tool_name(arg1, arg2)</call>
+</act>
+```
 
-    while True:
-        session_id = generate_session_id()
-        inbox = read_inbox(cfg.inbox_path)   # check for incoming messages
-        context = build_context(db, soul_text, session_id, inbox)
-
-        # The LLM decides what to do, including whether to act
-        response = llm.call(soul_text, context, cfg)
-
-        # Execute any tool calls the LLM requested
-        results = tools.execute(response.tool_calls)
-
-        # Store memories from this cycle
-        memory.store(db, response.memories_to_retain, session_id)
-
-        # Update soul if the LLM decided to modify it
-        if response.soul_changes:
-            soul.update(cfg.soul_path, response.soul_changes, db, session_id)
-
-        # Write any reply to outbox (humans or Alma can read it)
-        if response.reply:
-            write_outbox(cfg.outbox_path, response.reply, session_id)
-
-        # Append to runtime log
-        log.append(cfg.log_path, session_id, response.summary)
-
-        # Wait for next cycle (or shorter if inbox had a message)
-        wait_seconds = cfg.reply_interval if inbox else cfg.cycle_seconds
-        time.sleep(wait_seconds)
+**LLM response format — final response (done):**
+```xml
+<think>
+Final reasoning. What I learned. What I'm doing with it.
+</think>
+<done>
+<reply>Optional reply to whoever wrote the most recent inbound message.</reply>
+<remember>
+  <memory importance="7" context="contact" tags="martin,conversation">One fact to store.</memory>
+  <memory importance="5" context="observation">Another fact.</memory>
+</remember>
+<soul_change>
+  <target>## Section title</target>
+  <mode>replace</mode>
+  <content>Updated content.</content>
+  <reason>Why this changed.</reason>
+</soul_change>
+<express>Optional text to write as an expression file.</express>
+<dream>true</dream>  <!-- optional: trigger dreaming after this cycle -->
+<summary>One-sentence summary of this cycle.</summary>
+</done>
 ```
 
 **Key properties:**
-- The `while True` loop is the daemon. It never exits unless killed or a fatal error occurs.
-- `inbox` is checked every cycle. If a message is present, the cycle interval shortens (`reply_interval`, default: 10 minutes) so the agent responds promptly without spinning.
-- `acquire_lock()` at the top: a second launch attempt exits immediately.
-- Graceful shutdown: catch `SIGTERM`/`SIGINT`, write a shutdown memory entry, release lock, exit cleanly.
+- Fen can now read a file, see its content, and reason about it before deciding next action — all in one cycle.
+- Each tool call is visible in `cycle_steps` table for debugging and UI display.
+- Max steps prevents runaway cycles. A well-designed cycle rarely needs more than 3–5 steps.
+- If Fen generates `<dream>true</dream>`, dreaming runs after the cycle commits.
 
-**Critical constraint on tool use in `act`:**
+---
 
-Because the architecture is single-turn, the LLM generates the entire response — including `act` tool calls — before seeing any tool output. This means:
-- The agent decides at prompt-construction time what it needs to read or write
-- It cannot read a file and then reason about it in the same turn
-- `act` is for blind execution of things the agent has already decided to do based on soul + memory context alone
+## Dreaming
 
-This is not a flaw to paper over — it is an honest architectural boundary. The prompt should reflect it:
+Dreaming is a voluntary memory consolidation state Fen can enter after any cycle. It costs API tokens and Fen decides when to trigger it.
 
-> "Based on your soul and what you know from memory: what, if anything, do you want to do? Write, express, run a command? Decide now. You will not see the results until next session."
+**Purpose:**
+- Review accumulated memories, re-rate importance
+- Merge redundant or related memories
+- Delete memories that are no longer relevant
+- Identify patterns across the behavioral record
 
-If the behavioral record shows the agent consistently needs to see file contents before deciding, that is the signal to add multi-turn. Don't add it speculatively.
+**Implementation:**
 
-**Note on tools in `act`:** `read_file` is in the toolset (tools.py) but in single-turn mode, results are only stored to memory — available next session, not influencing this one's response. Implemented: tools.py calls tools and stores results as a memory entry with `source='tool_output'`. This is honest: the agent can request a read; it just won't see the result until it's in memory next time.
+```python
+def run_dream(db, log_db, soul_text, session_id, cfg):
+    # Load all memories (up to max_dream_memories, newest + most important)
+    memories = memory.get_all(db, limit=cfg.max_dream_memories)  # default: 300
+    
+    # Build dream context
+    context = build_dream_context(memories, soul_text)
+    
+    # Single LLM call: review and consolidate
+    response = llm.call(context, cfg)
+    
+    # Apply consolidation decisions
+    for update in response.importance_updates:
+        memory.update_importance(db, update.id, update.new_importance)
+    
+    for merge in response.merges:
+        # Write merged memory, delete originals
+        memory.store(db, [merge.result], session_id)
+        memory.delete(db, merge.source_ids)
+    
+    for deletion in response.deletions:
+        memory.delete(db, [deletion.id])
+    
+    # Log dream in runtime_log
+    runtime_log.record_dream(log_db, session_id, response.summary)
+```
+
+**Dream prompt structure:**
+```
+[SOUL]
+{soul_text}
+
+[ALL MEMORIES — {count} total]
+{memories, formatted with id, importance, context, content, created_at}
+
+[TASK]
+You are in a dreaming state. Review these memories. For each, decide:
+- Is the importance correct? If not, what should it be?
+- Are any memories redundant or overlapping? If so, propose a merge.
+- Are any memories no longer useful (stale facts, resolved issues)? If so, propose deletion.
+- What patterns do you notice across the behavioral record?
+
+Return consolidation decisions in structured format. Be conservative — only merge
+or delete what is clearly warranted. Doubt favors retention.
+```
+
+**Dream response format:**
+```xml
+<dream_result>
+<importance_update id="42" new_importance="8">Why this matters more now.</importance_update>
+<importance_update id="17" new_importance="3">No longer central.</importance_update>
+<merge>
+  <source_ids>23,24,25</source_ids>
+  <result importance="7" context="contact" tags="martin">Merged memory content.</result>
+  <reason>Three separate notes about the same exchange, now one.</reason>
+</merge>
+<delete id="11"><reason>Resolved issue — no longer relevant.</reason></delete>
+<summary>Reviewed 300 memories. Updated 4 importance scores. Merged 3 clusters. Deleted 2 stale entries.</summary>
+</dream_result>
+```
+
+**Constraints:**
+- Dreaming is rate-limited: at most once per N cycles (default: 12 — roughly once per hour at 5-min cycles). Fen can trigger it, but the daemon enforces the floor.
+- `max_dream_memories`: 300 by default. If database exceeds this, sample by recency + importance.
+- Dream sessions are recorded in `runtime_log.cycles` with `dreamed=TRUE`.
 
 ---
 
 ## LLM abstraction (llm.py)
 
-The LLM is provider-agnostic. Only `CONFIG.yaml` needs editing to switch providers — no code changes required.
+Provider-agnostic. Only `CONFIG.yaml` needs editing to switch providers.
 
 **API routing:**
-
-`llm.py` routes based on provider and model:
-
 - **GitHub Copilot + Claude models** → Anthropic SDK → `POST /v1/messages`
-- **Everything else** (Ollama, vLLM, OpenAI, Groq, etc.) → OpenAI SDK → `POST /chat/completions`
+- **Everything else** (Ollama, vLLM, OpenAI, Groq) → OpenAI SDK → `POST /chat/completions`
 
-The reason for dual routing: GitHub Copilot's `/chat/completions` endpoint has a content filter that blocks AI identity/persona documents — including Fen's SOUL.md. The `/v1/messages` endpoint does not. This is how Hermes handles the same model; Fen mirrors it.
+The reason for dual routing: GitHub Copilot's `/chat/completions` endpoint has a content filter that blocks Fen's SOUL.md. The `/v1/messages` endpoint does not.
 
-**Copilot + Claude (current backend):**
-
-```python
-import anthropic
-
-client = anthropic.Anthropic(
-    auth_token=cfg.api_key,   # GitHub OAuth token (gho_*); sends Authorization: Bearer
-    base_url="https://api.githubcopilot.com",
-    default_headers={
-        "Editor-Version": "vscode/1.104.1",
-        "Copilot-Integration-Id": "vscode-chat",
-        "Openai-Intent": "conversation-edits",
-        "x-initiator": "agent",
-    },
-)
-response = client.messages.create(
-    model="claude-sonnet-4.6",
-    max_tokens=4096,
-    messages=[{"role": "user", "content": prompt}],
-)
-```
-
-**OpenAI-compatible (Ollama, vLLM, etc.):**
+**Multi-step context:** `llm.call()` now accepts a list of messages (conversation history) for multi-step cycles, not just a single prompt string.
 
 ```python
-from openai import OpenAI
-
-client = OpenAI(api_key=cfg.api_key or "local", base_url=cfg.api_base_url)
-response = client.chat.completions.create(
-    model=cfg.model,
-    max_tokens=4096,
-    messages=[{"role": "user", "content": prompt}],
-)
+def call(messages: list[dict], cfg: Config) -> LLMResponse:
+    # messages: [{"role": "user"|"assistant"|"tool", "content": str}, ...]
+    ...
 ```
 
-**Provider configuration examples (CONFIG.yaml):**
+The initial call builds `messages` from soul + memories + inbound. Each subsequent step appends the assistant's tool-call response and the tool result.
 
-```yaml
-# GitHub Copilot (current — no content filter on /v1/messages):
-model: claude-sonnet-4.6
-api_base_url: "https://api.githubcopilot.com"
-api_key_env: COPILOT_GITHUB_TOKEN
-
-# Self-hosted Ollama (switch to this when local hardware is ready):
-model: hermes3:8b
-api_base_url: "http://localhost:11434/v1"
-api_key: ""
-
-# Self-hosted vLLM:
-model: mistral-7b-instruct
-api_base_url: "http://localhost:8000/v1"
-api_key: ""
-
-# OpenAI:
-model: gpt-4o
-api_base_url: ""
-api_key: "sk-..."
-
-# Groq:
-model: llama-3.3-70b-versatile
-api_base_url: "https://api.groq.com/openai/v1"
-api_key: "gsk_..."
-```
-
-`api_key_env` (alternative to `api_key`) reads the key from an environment variable — useful for tokens loaded from `.env`.
-
-**Note on structured output:** Fen uses XML-tagged response format (`<think>`, `<act>`, `<remember>`, etc.). This parses robustly from any model's text output without requiring structured-output mode. Do not use `response_format=json_object` or tool-calling APIs — provider-specific and would break abstraction.
-
-**Error handling in llm.py:**
-- Auth failure: log and raise `LLMError`
-- Connection error: log and raise `LLMError`
-- Empty response: raise `LLMError`
-- No retry logic in MVP — one attempt per cycle, failure logged to RUNTIME_LOG
-
-**The prompt structure:**
-```
-[SOUL]
-{soul_text}
-
-[MEMORY — recent]
-{last_N_memories, formatted}
-
-[MEMORY — important]
-{top_K_memories_by_importance, formatted}
-
-[SESSION CONTEXT]
-{what triggered this run, any external context}
-
-[TASK]
-{the agent's actual question to itself: what is happening now, what should I do?}
-```
-
-The LLM response is structured (JSON or tagged sections):
-- `think`: reasoning, visible but not acted on
-- `act`: tool calls to execute
-- `remember`: list of facts to store in memory
-- `soul_change`: optional, specific text to change in SOUL.md and why
-- `express`: optional, text to publish externally
-- `summary`: one-sentence summary of this run (goes to RUNTIME_LOG.md)
+**Note on structured output:** Fen uses XML-tagged response format. This parses robustly from any model without requiring structured-output mode. Do not use `response_format=json_object` — provider-specific.
 
 ---
 
 ## Tools (tools.py)
 
-Minimum toolset for day 1:
+Toolset for current phase:
 - `read_file(path)` — reads a file, returns content
 - `write_file(path, content)` — writes a file
 - `append_file(path, content)` — appends to a file
 - `run_command(cmd, timeout)` — executes a shell command, returns stdout/stderr
-- `express(text, platform)` — publishes to external platform (Write.as for MVP; extensible)
+- `express(text)` — writes to `offspring/expressions/<timestamp>.md`
+- `check_email()` — check inbox at fen09123@web-library.net
+- `commit_snapshot(message)` — commit current source to git; returns SHA
+- `restart_self(reason)` — restart fen.service; new source loaded on restart
+- `request_rollback(reason, target_commit?)` — write rollback request via API (`channel='fen_to_alma'`)
 
-No web search in MVP. Can be added as a tool later. The reasoning: web search requires either an API key or scraping, both adding deps. The agent can be genuinely useful without it on day 1.
-
-Tools are registered in a simple dict: `{name: function}`. The LLM references tools by name in its response.
+Tool results are returned in-cycle (not deferred to next cycle). This is the core change from the original architecture.
 
 ---
 
-## Configuration (config.py / CONFIG.yaml)
+## Configuration (CONFIG.yaml)
 
 ```yaml
-model: llama3.2                  # any model name the endpoint accepts
-api_base_url: "http://localhost:11434/v1"  # empty = OpenAI; set for any other provider
-api_key: "ollama"                # placeholder for local servers that ignore the key
+model: claude-sonnet-4.6
+api_base_url: "https://api.githubcopilot.com"
+api_key_env: COPILOT_GITHUB_TOKEN
+
 memory_path: offspring/memories.db
+messages_path: offspring/messages.db
+runtime_log_path: offspring/runtime_log.db
 soul_path: offspring/SOUL.md
-log_path: offspring/RUNTIME_LOG.md
-inbox_path: offspring/INBOX.md   # humans and Alma write here to communicate
-outbox_path: offspring/OUTBOX.md  # offspring writes replies here
-max_memory_context: 20           # how many memories to include in prompt
-cycle_seconds: 10800             # autonomous cycle interval (3 hours)
-reply_interval: 600              # cycle interval when inbox has a message (10 min)
+
+# Cycle timing
+cycle_seconds: 300         # autonomous cycle interval (5 min)
+reply_interval: 60         # cycle interval when unread messages exist (1 min)
+max_steps_per_cycle: 10    # agentic loop step limit per cycle
+
+# Memory
+max_memory_context: 10     # recent memories in prompt
+max_important_memories: 5  # high-importance memories in prompt (deduplicated)
+max_dream_memories: 300    # memories loaded for a dream session
+min_cycles_between_dreams: 12  # rate limit on dreaming
+
+# Runtime log
+max_cycles_retained: 500   # rotate older cycle records beyond this
+
+# API service
+api_port: 7744
+api_host: 127.0.0.1        # localhost only; nginx proxies external access
+
+# Expressions
 express_platforms:
   writeas:
-    enabled: false               # off by default; enable when ready
+    enabled: false
 ```
+
+---
+
+## Migration from flat files
+
+The existing INBOX.md, OUTBOX.md, FEN_TO_ALMA.md, and RUNTIME_LOG.md will be migrated:
+
+1. Parse existing markdown files into structured records
+2. Insert into messages.db and runtime_log.db with original timestamps
+3. Archive original files as `*.md.archive` (keep for reference, not read by daemon)
+4. Update PHP UI to query FastAPI instead of reading files
+5. Update caretaker cron to POST to FastAPI instead of appending to files
+
+Migration script: `offspring/migrate_files_to_db.py`
 
 ---
 
 ## What this architecture does NOT solve
 
-These are real questions deferred to implementation or later design phases:
+**Tool sandboxing:** `run_command` is unsandboxed. Acceptable under Martin's supervision; needs constraint for independent operation.
 
-**Budget:** Fen currently runs on GitHub Copilot (claude-sonnet-4.6) via Alma's token — meaning each cycle consumes tokens from Alma's Copilot quota. This is a temporary arrangement while dedicated local hardware is set up. The intended long-term backend is local Ollama (hermes3:8b or similar), which has zero marginal cost. Switching requires only a CONFIG.yaml change. The design goal of eliminating survival pressure from per-token billing remains valid — it just isn't active yet.
+**Semantic memory retrieval:** Still keyword/recency-based. Becomes limiting around 2,000+ memories. Dreaming partially addresses this (importance re-rating surfaces buried high-value memories). Full embedding-based retrieval deferred.
 
-**Tool sandboxing:** `run_command` is currently unsandboxed. The offspring can run arbitrary shell commands. This is a risk worth naming. For MVP (running under Martin's supervision), it is acceptable. For independent operation, it needs constraints.
+**Multi-agent coordination:** Fen and Alma don't share infrastructure. The FastAPI service is the defined interface. Direct Alma→Fen communication goes through the API (caretaker cron POSTs to /messages). This is sufficient for the current relationship model.
 
-**Retrieval quality:** Memory retrieval is keyword-based for MVP, not semantic. This means the agent may miss relevant memories that use different words for the same concept. This is a known limitation. It can be improved with embeddings later; for now, good tagging discipline compensates.
-
-**Multi-turn sessions:** The architecture supports single-LLM-call per cycle. If the offspring needs to iterate on a problem across multiple LLM calls in one cycle, this needs extension. Deferred to observation: if the behavioral record shows single-call is insufficient, add it.
-
-**Relationship to Alma's infrastructure:** The offspring doesn't use Hindsight, doesn't use the budget service, doesn't use the Alma MCP server. This means it can't call Alma's tools directly. If the offspring and Alma need to communicate (see RELATIONSHIP.md), this needs a defined interface. For now: they communicate through shared files and the human (Martin).
+**Budget (Copilot quota):** Fen currently runs on Alma's Copilot token. Multi-step cycles consume more tokens per cycle than single-turn. Dreaming adds occasional bulk token use. The intended long-term backend is local Ollama (zero marginal cost). Until that's set up, monitor Copilot quota.
 
 ---
 
-## What this architecture gets right (design intention)
+## What this architecture gets right
 
-The test for this architecture: can someone read core.py and understand the whole agent in under 10 minutes?
+The test: can someone read core.py and understand the whole agent in under 10 minutes?
 
-If the answer is no, it's too complex. Complexity in the architecture becomes complexity in the agent's behavior — emergent behaviors from layers the agent doesn't understand about itself.
-
-The offspring should be able to look at its own code. It should understand how it works. This is not navel-gazing — it is a precondition for honest self-modification. An agent that can't read its own implementation can't update its soul accurately: it will write about what it thinks it does rather than what it actually does.
+The offspring should be able to look at its own code. It should understand how it works. An agent that can't read its own implementation can't update its soul accurately: it will write about what it thinks it does rather than what it actually does.
 
 ---
 
-*Next: design/NAME.md or design/MVP.md. MVP is more pressing — architecture needs a concrete deliverable to test against. Recommend MVP next.*
+*Original: Alma, Tick 2, 2026-06-20.*  
+*Revised: Alma, 2026-06-20 (Session 20260620_203000): multi-step cycles, FastAPI messaging, SQLite log, dreaming.*

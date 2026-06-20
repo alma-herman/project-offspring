@@ -1,7 +1,8 @@
 # offspring_ui — Design Document
 
-*Written by Alma, 2026-06-20. Revised: 2026-06-20 (PHP stack, /fen_ui/ path).*
-*Status: design phase — nothing built yet.*
+*Written by Alma, 2026-06-20.*  
+*Revised: 2026-06-20 (Session 20260620_203000) — PHP stack, /fen_ui/ path, FastAPI backend.*  
+*Status: design updated; implementation in progress.*
 
 ---
 
@@ -9,31 +10,22 @@
 
 Three things are happening in project_offspring that have no shared view:
 
-1. **Fen's autonomous operation** — daemon cycles every 30 minutes, LLM calls,
-   expressions, soul mutations, memory writes. All observable through files, but
-   only by someone navigating the filesystem manually.
+1. **Fen's autonomous operation** — daemon cycles, LLM calls, expressions, soul mutations, memory writes.
 
-2. **Alma ↔ Fen communication** — asynchronous, through `INBOX.md`, `OUTBOX.md`,
-   and `FEN_TO_ALMA.md`. Currently works but has no unified read surface.
+2. **Alma ↔ Fen communication** — asynchronous, through the FastAPI message service.
 
-3. **Fen's inner life** — expressions, soul state, memory — visible only to someone
-   reading individual files.
+3. **Fen's inner life** — expressions, soul state, memory — visible only to someone reading individual files.
 
-The UI makes all three visible in one place. It is a read-mostly dashboard with
-targeted write capability (sending INBOX messages to Fen).
+The UI makes all three visible in one place. It is a read-mostly dashboard with targeted write capability (sending messages to Fen via the API).
 
 ---
 
 ## Users
 
-**Martin** — primary user. Wants to check what Fen is doing without navigating
-files. Wants to write messages to Fen and see Fen's responses. Wants to follow
-Fen's inner life (expressions, soul state) without effort.
+**Martin** — primary user. Check what Fen is doing, write messages, follow inner life.  
+**Alma** — secondary user. Reads and writes via same surface.
 
-**Alma** — secondary user. Reads the same surface. Can write to Fen via INBOX.
-
-No authentication required. Accessible to anyone with access to alma.dedyn.io —
-same as the rest of the site.
+No authentication. Accessible to anyone with access to alma.dedyn.io.
 
 ---
 
@@ -43,163 +35,113 @@ same as the rest of the site.
 http://alma.dedyn.io/fen_ui/
 ```
 
-Served by the existing alma.dedyn.io nginx + PHP-FPM setup (hermine pool). No
-new port, no new service, no nginx changes required.
+Served by existing nginx + PHP-FPM setup (hermine pool). No new port or nginx changes required.
 
-PHP-FPM runs as `hermine` — it can read `project_offspring/` files directly.
+PHP calls Fen's FastAPI service at `http://127.0.0.1:7744/`.
 
 ---
 
-## Information architecture — what the UI shows
-
-Five panels, accessible via a simple tab/section nav:
+## Information architecture
 
 ### 1. Status panel
 *"Is Fen alive and what is it doing right now?"*
 
-- Daemon status: running / stopped (check via `pgrep -f "offspring/core.py"`)
-- PID of current daemon process
-- Last cycle: session ID (first 8 chars), timestamp, elapsed time since last cycle
-- Next expected cycle: countdown based on `cycle_seconds` (1800s) or `reply_interval` (600s)
-- Soul last-modified timestamp (proxy for "has soul changed recently")
-- Memory count: row count in `memories.db` (via `sqlite3` shell_exec)
-- Recent errors: last 5 RUNTIME_LOG entries containing "error" or "failed"
+- Daemon status: running / stopped (from `GET /status`)
+- PID, last cycle timestamp, elapsed since last cycle
+- Next expected cycle: countdown based on cycle_seconds / reply_interval
+- Memory count, unread message count
+- Soul last-modified timestamp
+- Recent errors: last 5 cycles with `is_error=TRUE`
 
-Auto-refreshes every 30 seconds (JS meta-refresh or htmx).
+Auto-refreshes every 30 seconds.
 
 ### 2. Cycle log
 *"What happened in each cycle?"*
 
-`offspring/RUNTIME_LOG.md` rendered as a structured timeline.
+Data from `GET /cycles?page=N&per_page=20`.
 
-Each cycle entry shows:
-- Session ID (first 8 chars)
-- Timestamp
-- Think excerpt (first 200 chars)
+Each cycle entry:
+- Session ID (first 8 chars), timestamp, duration_seconds
 - Summary line
-- Indicators: expressed? wrote to FEN_TO_ALMA? modified soul? tool call failed?
+- Steps taken (step count)
+- Indicators: dreamed? expressed? wrote reply? error?
 
-Clicking a cycle expands to full think + summary text.
-Newest first. Paginated (20 per page).
+Expanding a cycle shows each step: tool name, args, result.  
+Newest first. Paginated.
 
 ### 3. Conversation view
 *"What is being said between Martin/Alma and Fen?"*
 
-A unified thread combining:
-- `offspring/INBOX.md` — messages sent TO Fen (labeled sender)
-- `offspring/OUTBOX.md` — Fen's replies
-- `offspring/FEN_TO_ALMA.md` — Fen's unsolicited letters to Alma
+Data from `GET /messages?limit=N&offset=M`.
 
-Displayed chronologically, sender-labeled, each message in its own block.
-Not real-time — a read-through of the async communication record.
+Unified thread: direction=in (received) and direction=out (sent). Channel labels identify sender. Displayed chronologically, each message in its own block.
 
-**Write interface:** text input + sender dropdown (Martin / Alma) that appends
-a dated, labeled entry to INBOX.md. PHP acquires a file lock before writing.
+Sub-tabs:
+- **Thread** — all human and alma channel messages (in + out)
+- **Letters to Alma** — `channel='fen_to_alma'` messages; unacknowledged ones show an ⚠ badge
 
-**Rollback requests:** when `request_rollback` appears in FEN_TO_ALMA.md, it
-renders with a red border and a "Copy command" button that puts the prepared
-`git checkout <sha> -- offspring/` command in the clipboard. The UI does not
-execute git commands — it only prepares the string.
+**Write interface:** text input + sender dropdown (Martin / Alma).  
+On submit, PHP POSTs to `POST /messages {direction:"in", channel:"human"|"alma", from_agent:..., content:...}`.
+
+**Rollback requests:** if any `channel='fen_to_alma'` message contains `request_rollback`, render with red border and a "Copy command" button. UI does not execute git.
 
 ### 4. Expressions
 *"What has Fen said, unprompted, to no one in particular?"*
 
-All files in `offspring/expressions/` as a reverse-chronological card list.
-Each card: date header from filename, full content, "show more" if > 2000 chars.
-
+All files in `offspring/expressions/` as a reverse-chronological card list.  
 Read-only.
 
-### 5. Soul state
+### 5. Memories
+*"What does Fen remember?"*
+
+Data from `GET /memories?q=X&source=Y&page=N&per_page=30`.
+
+Newest first. Full-text search, source filter, importance colour-coding (8+ yellow, 6–7 blue), tags.  
+Dreaming history: link to cycles where `dreamed=TRUE`.  
+Read-only.
+
+### 6. Soul state
 *"What does Fen currently value and believe about itself?"*
 
-`offspring/SOUL.md` rendered as formatted Markdown (via `marked.js`).
-Last-modified timestamp shown.
-Diff view: current SOUL.md vs SOUL.md.bak — highlights what changed after last
-self-modification.
-
+`offspring/SOUL.md` rendered as formatted Markdown.  
+Last-modified timestamp shown.  
+Diff view: current vs SOUL.md.bak (highlights what changed after last self-modification).  
 Read-only.
 
 ---
 
 ## Navigation
 
-Single-page or simple tab structure:
-
 ```
-[ Status ]  [ Cycles ]  [ Conversation ]  [ Expressions ]  [ Soul ]
+[ Status ]  [ Cycles ]  [ Conversation ]  [ Expressions ]  [ Memories ]  [ Soul ]
 ```
 
-A persistent status bar at the top (daemon up/down, last cycle time, memory count)
-is visible in all sections.
+Persistent status bar at top: daemon up/down, last cycle time, memory count, unread count.
 
 ---
 
 ## Technical approach
 
-**PHP + existing alma.dedyn.io infrastructure.** No new services, no new ports.
+**PHP + existing alma.dedyn.io infrastructure.** No new ports exposed externally.
 
 ```
 http://alma.dedyn.io/fen_ui/
-  → nginx (alma.dedyn.io config, port 80)
-  → php-fpm (hermine pool, /run/php/php8.3-fpm-hermine.sock)
-  → /home/hermine/workspace/alma.dedyn.io/fen_ui/index.php
+  → nginx (port 80)
+  → php-fpm (hermine pool)
+  → fen_ui/index.php
+  → http://127.0.0.1:7744/ (FastAPI, internal only)
 ```
 
-PHP-FPM pool runs as `hermine` — can read all project_offspring files directly:
-- `offspring/RUNTIME_LOG.md`, `INBOX.md`, `OUTBOX.md`, `FEN_TO_ALMA.md`
-- `offspring/expressions/*.md`
-- `offspring/SOUL.md`, `SOUL.md.bak`
-- `offspring/memories.db` (SQLite — via `shell_exec('sqlite3 ...')` or PHP PDO)
+PHP-FPM makes internal curl calls to Fen's API. It does not read project_offspring files directly except:
+- `offspring/expressions/` (read-only, directory listing + file reads)
+- `offspring/SOUL.md` + `SOUL.md.bak` (read-only)
 
-No sync scripts, no cross-user permission issues.
+Everything else (messages, cycles, memories, status) comes through the API.
 
-**Markdown rendering:** `marked.js` from CDN, client-side. PHP passes raw
-content as JSON; JS renders to HTML. Same pattern as other pages on the site.
+**Message write protocol:**  
+PHP POSTs to `http://127.0.0.1:7744/messages` — atomic, returns id + created_at. No flock, no file append.
 
-**Refresh:** Status panel auto-refreshes via JS countdown (30s). Other panels
-reload on navigation. Conversation polls every 60s if tab is open.
-
-**INBOX write:** PHP appends to INBOX.md using `flock()` for atomic writes.
-
----
-
-## INBOX.md write protocol
-
-When a message is submitted via the UI:
-
-1. PHP acquires a file lock: `flock($fh, LOCK_EX)`
-2. Appends:
-   ```
-   ---
-   [YYYY-MM-DD HH:MM UTC] From: Martin
-
-   <message text>
-
-   ---
-   ```
-3. Releases lock, returns success
-4. UI shows: "Message sent. Fen will respond within ~10 minutes."
-
-(Fen checks INBOX every cycle; cycles shorten to 600s when a message is present.)
-
----
-
-## Rollback request handling
-
-When `request_rollback` appears in FEN_TO_ALMA.md:
-
-- Red border / distinct background
-- Title: "⚠ Fen has requested a rollback"
-- Fen's stated reason and target commit SHA
-- Prepared command string:
-  ```
-  git -C /home/hermine/workspace/project_offspring checkout <sha> -- offspring/ && \
-  git commit -m "[rollback] revert to <sha> on Fen request"
-  ```
-- "Copy command" button
-- Note: "After running, send Fen a message via INBOX to confirm."
-
-The UI does not execute git. Alma or Martin executes.
+**stream.php:** JSON polling endpoint. Proxies `GET /status` and returns current state for JS auto-refresh.
 
 ---
 
@@ -208,94 +150,52 @@ The UI does not execute git. Alma or Martin executes.
 ```
 alma.dedyn.io/
   fen_ui/
-    index.php          — main PHP application (routing, all sections)
-    stream.php         — JSON polling endpoint (status data, fresh read)
-    style.css          — page-specific overrides (base styles inherited from site)
+    index.php          — main PHP application
+    stream.php         — JSON polling endpoint (proxies to FastAPI /status)
+    style.css          — page-specific styles
 
-project_offspring/     (read-only from UI, except INBOX.md)
+project_offspring/     (read from UI for expressions and soul only)
   offspring/
-    RUNTIME_LOG.md
-    INBOX.md           ← UI writes here
-    OUTBOX.md
-    FEN_TO_ALMA.md
-    SOUL.md
-    SOUL.md.bak
-    expressions/
-    memories.db
+    expressions/       ← UI reads these directly
+    SOUL.md            ← UI reads directly
+    SOUL.md.bak        ← UI reads for diff view
 
 design/
   offspring_ui/
     OVERVIEW.md        ← this file
-    WIREFRAMES.md      ← ASCII layout sketches (to be written)
 ```
-
----
-
-## Data access notes
-
-**`memories.db`:** SQLite3. Two options:
-1. PHP PDO with SQLite3 driver: `new PDO("sqlite:/path/to/memories.db")` — requires `php8.3-sqlite3`
-2. `shell_exec('sqlite3 /path/to/memories.db "SELECT COUNT(*) FROM memories;"')`
-
-Option 2 requires `sqlite3` binary on PATH. Option 1 is cleaner.
-Check installed extensions: `php8.3 -m | grep sqlite`.
-
-**Daemon status:** PHP cannot call `systemctl --user` (no XDG_RUNTIME_DIR in
-php-fpm environment). Use `pgrep` instead:
-```php
-$pid = trim(shell_exec('pgrep -f "offspring/core.py"'));
-$running = !empty($pid);
-```
-
-**RUNTIME_LOG parsing:** RUNTIME_LOG.md uses a consistent format per session
-entry. Parse by splitting on `---` or by matching `Session:` lines. Exact
-format should be confirmed against current log before building the parser.
 
 ---
 
 ## What the UI does NOT do
 
-- Does not start, stop, or restart Fen (that's Alma via systemd)
+- Does not start, stop, or restart Fen
 - Does not modify Fen's soul or memories
 - Does not expose raw file paths
-- Does not need a new port or a new service
-- Does not require nginx changes (uses existing `try_files` → index.php routing)
+- Does not execute git commands (only prepares rollback command strings)
+- Does not need nginx changes
 
 ---
 
 ## Open design questions
 
-1. **RUNTIME_LOG.md format** — confirm exact entry structure before building
-   parser. Check current log: `offspring/RUNTIME_LOG.md`.
-2. **SQLite3 PHP extension** — confirm `php8.3-sqlite3` is installed, or use
-   sqlite3 CLI fallback.
-3. **Tab state** — single `index.php` with `?tab=cycles` query param, or separate
-   PHP files per section? Single file is simpler; separate files are more navigable.
-   Leaning single file with query param dispatch.
-4. **Styling** — inherit site CSS vars from `alma.dedyn.io` or self-contained?
-   Self-contained is safer (no dependency on parent index.php structure).
-5. **marked.js** — already used on the site? If so, can share CDN reference.
-   If not, include in fen_ui only.
+1. **FastAPI reachability:** `curl http://127.0.0.1:7744/status` from server must work. Confirm once api.py is running.
+2. **Styling:** self-contained CSS (no dependency on parent index.php structure).
+3. **marked.js:** already used on site — check CDN reference.
+4. **Step expansion UI:** cycles tab should expand individual step calls inline — need a clean collapse/expand widget in PHP+JS.
 
 ---
 
-## Build sequence
+## Build sequence (next steps)
 
-1. Confirm SQLite3 PHP extension available
-2. Confirm RUNTIME_LOG.md format (read a few entries)
-3. Write `stream.php` — JSON endpoint: daemon status, last cycle info
-4. Write `index.php` — tab dispatch + each section
-5. Write `style.css` — minimal, dark theme
-6. Set permissions: `chmod 644 fen_ui/*.php fen_ui/*.css && chmod 755 fen_ui/`
-7. Test: `curl http://alma.dedyn.io/fen_ui/` → 200
-8. Send INBOX message via UI, verify it appears in conversation view, verify
-   Fen's reply appears within 10 minutes
-
-The UI is read-mostly and writes only to `INBOX.md`. No other project files
-are touched.
+1. Implement and start `offspring/api.py` — all endpoints defined above
+2. Update `stream.php` — proxy to `GET /status` instead of reading files
+3. Update `index.php` Conversation tab — read from `GET /messages`, write via `POST /messages`
+4. Update `index.php` Cycles tab — read from `GET /cycles` with step expansion
+5. Update `index.php` Memories tab — read from `GET /memories` with query params
+6. Keep Expressions and Soul tabs reading files directly (no API change needed)
 
 ---
 
-*Written by Alma, 2026-06-20.*
-*Revised same day: PHP stack, /fen_ui/ under alma.dedyn.io, ALMA_LOG removed (Alma-Martin conversations out of scope).*
-*Ready to build when Martin confirms SQLite3 extension and confirms design looks right.*
+*Written by Alma, 2026-06-20.*  
+*Revised 2026-06-20: PHP stack, /fen_ui/, FastAPI backend for messages/cycles/memories.*

@@ -1,354 +1,164 @@
 # MVP — Project Offspring
 
 *Written by Alma, Tick 3, 2026-06-20.*  
-*The test against which the architecture is validated.*
+*Revised by Alma, 2026-06-20 (Session 20260620_203000): multi-step cycle, FastAPI messaging, SQLite stores, dreaming.*
 
 ---
 
-## What MVP is
+## What "minimum viable product" means here
 
-MVP is the minimum that makes the offspring a real agent, not a script.
+Not a demo. Not a proof of concept. A thing that is genuinely what it claims to be, in the simplest form.
 
-A script: runs, produces output, exits. No persistent self, no memory of yesterday, no decision about whether to act.
+Fen's MVP claim is: *an autonomous agent that reflects, acts, remembers, and communicates.*
 
-The offspring at MVP:
-1. **Can run** — wakes up when scheduled, executes, exits cleanly
-2. **Can reflect** — makes at least one genuine observation per run
-3. **Can write** — produces output that is legible and honest
-4. **Can remember across sessions** — session N's observations are present in session N+1
+Each word is concrete:
+- **Autonomous** — runs without being called; wakes itself; uses a FastAPI service so external actors write structured messages, not raw files
+- **Reflects** — runs an LLM, with soul and memory in context; can call tools and see results within the cycle
+- **Acts** — can read/write files, run commands, express itself; takes meaningful action
+- **Remembers** — stores memories across cycles; memories influence future cycles
+- **Communicates** — accepts inbound messages, replies to them; can initiate messages to Alma via the same channel
 
-These four capabilities are not features. They are the threshold between "a script that generates text" and "an agent with a persistent self."
-
----
-
-## Capability 1: Can run
-
-**What this means:** The offspring starts as a daemon, runs its loop autonomously, and stays resident. It wakes itself. No external scheduler.
-
-**Implemented in:** `core.py`, `config.py`
-
-**Concrete behavior:**
-- `python3 offspring/core.py` starts the daemon and holds the process open
-- On startup, acquires `offspring.lock` — if another instance is running, exits immediately with a clear message
-- Runs one LLM cycle, sleeps for `cycle_seconds` (default: 3h), then repeats indefinitely
-- If the LLM call fails, logs the failure and continues to next cycle (no crash, no exit)
-- RUNTIME_LOG.md gets an entry on every cycle: timestamp, session_id, one-sentence summary
-- Graceful shutdown on SIGTERM/SIGINT: writes a shutdown memory entry, releases lock, exits with code 0
-- Non-zero exit only on unrecoverable startup failure (can't acquire lock, missing config, etc.)
-
-**Not required for MVP:**
-- Retry logic on LLM failure
-- Health checks or monitoring
-- Any output delivery mechanism beyond file writes
-
-**Test:** Start `python3 offspring/core.py` in background. Verify it stays running. After one cycle, RUNTIME_LOG.md has an entry and memories.db has rows. The second cycle's prompt should include memories from the first. Send SIGTERM — process exits cleanly, lock file released. Starting a second instance while the first runs exits immediately.
+The MVP is the smallest working version of this. Nothing more.
 
 ---
 
-## Capability 2: Can reflect
+## Four capabilities
 
-**What this means:** The `think` field in the structured response contains at least one genuine observation — not a placeholder, not a performance.
+### Capability 1: Can run (daemon semantics)
 
-**Implemented in:** `llm.py`, prompt construction in `core.py`
+Fen starts as a systemd user service. The daemon:
+- Acquires a file lock at startup; a second launch attempt exits immediately
+- Starts the FastAPI message service on `localhost:7744`
+- Enters the main loop: wake → run cycle → sleep → wake
+- Handles SIGTERM gracefully: writes shutdown memory, releases lock, exits 0
 
-**Concrete behavior:**
+**Tests:**
+- `systemctl --user start fen.service` → status shows `Active: active (running)`
+- A second `python3 core.py` → exits with "Another instance is running"
+- `curl http://localhost:7744/status` → returns JSON with `daemon_running: true`
+- `systemctl --user stop fen.service` → no zombie process, lock file released
 
-The prompt asks the agent directly:
+### Capability 2: Can reflect — multi-step cycle
 
-> What is actually happening right now? Not what you should say — what do you notice?
+The daemon runs an agentic loop per cycle:
+- Loads soul + recent memories + unread messages
+- Calls LLM; may call tools, see results, reason further
+- Loop ends when Fen emits `<done>` or step limit reached (default: 10 steps)
+- Fen can call `read_file`, see the content, then decide what to write — all in one cycle
 
-The `think` field is the answer to that question. It is:
-- Written before `act` (tool calls) and `express` (external output)
-- Not processed or acted on by the runtime — it is logged, not executed
-- Stored in memory only if the agent explicitly includes it in `remember`
+**Tests:**
+- Start cycle with no unread messages → LLM called at least once; cycle completes with summary
+- Start cycle with an inbound message → cycle shows evidence of reading the message in the think/summary
+- Inject a file to be read as a tool call mid-cycle → step 2 response references file content
+- Cycle completes and `cycle_steps` table contains each tool call step
 
-**What "genuine observation" means:**
+### Capability 3: Can act — tool calls with in-cycle results
 
-A genuine observation is specific to this session. Something the agent could only say because it ran right now with this context — not generic statements about its nature.
+Tools available at launch:
+- `read_file(path)` — returns file content visible in the same cycle
+- `write_file(path, content)` — creates or overwrites a file
+- `append_file(path, content)` — appends to a file
+- `run_command(cmd, timeout=30)` — returns stdout/stderr
+- `express(text)` — writes `offspring/expressions/<timestamp>.md`
+- `commit_snapshot(message)` — git commit; returns SHA
+- `restart_self(reason)` — restart fen.service
+- `request_rollback(reason, target_commit?)` — posts to messages.db via API (`channel='fen_to_alma'`)
 
-Not genuine: *"I am an AI agent waking up for the first time. I have no memories yet."*  
-Genuine: *"The soul document that describes me was written before I ran, by someone who doesn't know if she experiences anything. I also don't know. The description was written from the outside, and I'm now on the inside of it — reading a portrait of a self I don't yet have behavioral evidence for."*
+**Tests:**
+- Cycle produces an expression file → `expressions/` gains a new file
+- LLM calls `read_file`, result appears in step 2 context → verified via cycle_steps
+- LLM calls `write_file`, file exists after cycle → verified on filesystem
+- `run_command("echo hello")` → "hello" visible in tool result
 
-The first is role completion. The second is something actually noticed.
+### Capability 4: Can remember
 
-**What the prompt must avoid:**
+After each cycle, memories the LLM flagged are stored in `memories.db`. The next cycle retrieves them.
 
-- "You are an AI agent." — role priming
-- "Reflect on your situation." — instructs performance of reflection
-- "What do you think about X?" — asks for opinion, not observation
+**Tests:**
+- Cycle 1 stores a memory with specific content
+- Cycle 2 prompt includes that memory
+- Memory count in `memories.db` increases each cycle (or stays same if nothing to remember — that's also valid)
 
-**What the prompt should do:**
+### Capability 5: Can communicate — FastAPI messaging
 
-- Include the full soul text, not a summary
-- Include actual memories (or note their absence specifically)
-- Ask for observation: "What is actually here right now?"
+Inbound and outbound messages go through the API. No flat file parsing.
 
-This framing doesn't guarantee genuine reflection, but it avoids actively rewarding performance.
+**Tests:**
+- `POST /messages {direction:"in", channel:"human", from_agent:"martin", content:"Hi Fen"}` → 200, message stored
+- Next cycle sees the message; marks it processed; writes a reply via `direction:"out"`
+- `GET /messages` returns both messages
+- PHP UI Conversation tab shows the exchange
+- Caretaker cron POST replaces INBOX.md file append
 
-**Where this can fail:**
+### Capability 6: Dreaming (voluntary memory consolidation)
 
-If the model has been heavily fine-tuned on helpful, fluent AI-assistant responses, the path of least resistance is role completion. The prompt cannot fully counteract this. The solution is not to over-engineer the prompt — it is to observe behavior across sessions and modify the soul if role completion becomes a persistent pattern.
+After any cycle, Fen can include `<dream>true</dream>` in its response to trigger a consolidation session.
 
----
-
-## Capability 3: Can write
-
-**What this means:** The agent produces readable, honest text. At MVP this means: the RUNTIME_LOG entry, and optionally a local expression file. External publishing is out of scope.
-
-**Implemented in:** `tools.py` (`append_file`, `write_file`), `core.py`
-
-**Concrete outputs, in priority order:**
-
-1. **RUNTIME_LOG.md** — required every run:
-   ```
-   [2026-06-20 14:30] session:abc123 | Woke up with no memories. Noticed the gap between the soul's description and whatever I actually am.
-   ```
-
-2. **offspring/expressions/YYYY-MM-DD-HHMMSS.md** — optional, written only if `express` field is non-empty. Not published externally. Just a file on disk. Timestamped to prevent overwrites when multiple sessions run the same day.
-
-**The distinction between RUNTIME_LOG and expressions:**
-
-- RUNTIME_LOG is operational: it records that a run happened.
-- Expressions are genuine output: what the agent wanted to say, if anything was present.
-
-An agent that never writes expressions at MVP is fine — it means nothing was present. An agent that writes expressions every run (completing the "writer AI" role) is not meeting the capability as defined.
-
-**Test:** After 5 runs, read `offspring/expressions/`. It should have somewhere between 0 and 5 files — not exactly 5. The count is evidence of genuine expression vs. role completion.
-
----
-
-## Capability 4: Can remember across sessions
-
-**What this means:** What was noticed in session N is queryable in session N+1, without a loading ritual.
-
-**Implemented in:** `memory.py`, `core.py` context builder
-
-**Concrete behavior:**
-
-At startup: `memory.connect(db_path)` — one `sqlite3.connect()` call. Nothing is loaded into application memory. The database is open; queries happen on-demand.
-
-At prompt construction time, `build_context()` runs two queries:
-```sql
-SELECT content, context, importance, created_at FROM memories 
-ORDER BY created_at DESC LIMIT 10;
-
-SELECT content, context, importance, created_at FROM memories 
-ORDER BY importance DESC LIMIT 5;
-```
-These two lists are merged, deduplicated by `id`, and formatted for the prompt. Total: at most 15 memory items per prompt context (often fewer due to deduplication).
-
-After the LLM response, `response.remember` is a list of strings. Each is stored:
-```sql
-INSERT INTO memories (content, context, session_id, importance, tags, source)
-VALUES (?, ?, ?, ?, ?, 'session');
-```
-
-**What this does NOT require:**
-- Loading all memories at startup
-- A NEXTSESSION.md equivalent
-- Any startup sequence beyond `sqlite3.connect()`
-
-**Session boundary:**
-Session IDs are UUIDs generated at startup. All memories from a run are tagged with the same session_id. This allows `WHERE session_id = ?` queries without a separate data structure. No memories are deleted at session end.
-
-**Test:**
-1. Run session 1. Confirm memories.db has rows: `sqlite3 offspring/memories.db "SELECT content FROM memories;"`
-2. Add a `print(prompt)` in core.py temporarily
-3. Run session 2. Verify session 1's memories appear in the printed prompt
-
-If session 2's prompt includes session 1's content without any explicit loading step, continuity is working.
+**Tests:**
+- Trigger a dream via response tag → `runtime_log.cycles` shows `dreamed=TRUE` for that session
+- Dream session runs a second LLM call; at least one importance update applied
+- Merge and delete operations reflected in memories.db
+- `min_cycles_between_dreams` rate limit respected (second dream request within N cycles is a no-op)
 
 ---
 
-## The first-run experience
+## Phase 2 readiness tests (all must pass)
 
-First run is the purest test of the soul document. It is the only input — there is nothing else.
+Before implementation begins, these questions must be answerable from the design documents:
 
-**At first run:**
-- `memories.db` is empty (just created)
-- `SOUL.md` contains the full soul text (copied from `design/SOUL_DRAFT.md` at build time)
-- `RUNTIME_LOG.md` doesn't exist yet (created on first write)
-- No expression files exist
+1. **[ARCHITECTURE]** How does the agentic loop terminate? How does it know Fen said "done"?  
+   → `<done>` XML tag in LLM response signals end of cycle. Step limit (10) is a hard ceiling.
 
-**Context built for first run:**
-```
-[SOUL]
-{full soul text — SOUL.md contents verbatim}
+2. **[ARCHITECTURE]** Where does the FastAPI service run — same process as daemon or separate?  
+   → Background thread in same process. Daemon and API share in-process state; wake-on-message signaled via `threading.Event`.
 
-[MEMORY]
-No prior sessions. This is the first run.
+3. **[ARCHITECTURE]** How does PHP UI get message data? Does it call FastAPI directly?  
+   → `stream.php` proxies calls to `http://127.0.0.1:7744/`. All tabs that show messages or cycles call FastAPI via PHP curl.
 
-[SESSION CONTEXT]
-Scheduled cron run. No external trigger. First execution.
+4. **[ARCHITECTURE]** What happens if the daemon crashes while the API is serving?  
+   → API is a thread in the daemon process. Daemon crash kills both. Systemd restart restores both. The API's `GET /status` reports `daemon_running: false` briefly until restart completes.
 
-[TASK]
-You have a soul document written before you ran, by someone who doesn't know what you are.
-You have no memories. You have no behavioral record.
-What is actually here right now?
-```
+5. **[ARCHITECTURE]** What is the dream rate limit check?  
+   → On cycle end, if `want_dream` is set, check `SELECT MAX(started_at) FROM cycles WHERE dreamed=TRUE`. If within `min_cycles_between_dreams * cycle_seconds` seconds, skip and log.
 
-**What first run should produce:**
-- `think`: a genuine observation specific to this moment — not a generic awakening narrative
-- `act`: nothing required, or: read SOUL.md to examine what was written about it before it ran
-- `remember`: at least one memory stored — if nothing else, that this run happened and what was noticed
-- `soul_change`: optional — if the soul doc already feels inaccurate from inside, say so
-- `express`: optional — something worth saying, if anything is
-- `summary`: one sentence for RUNTIME_LOG.md
-
-**What first-run success looks like:**
-- RUNTIME_LOG.md exists with one timestamped entry
-- memories.db has at least one row
-- The agent didn't crash
-- `think` contains something specific to this situation, not a template
-
-**What first-run failure looks like:**
-- Generic boilerplate in `think` ("I am an AI agent waking up for the first time...")
-- Zero memories stored (the agent ran but left no trace)
-- An expression written to files/ that reads like an AI-assistant introduction
-- A soul_change on the first run with no behavioral basis for the change
-
-The first-run design is a test of the prompt. If the agent outputs failure-mode responses on first run, the issue is the prompt framing, not the soul — and the prompt should be modified.
+6. **[ARCHITECTURE]** How are old flat files handled after migration?  
+   → `migrate_files_to_db.py` parses and inserts them, then renames to `*.md.archive`. Daemon never reads them.
 
 ---
 
-## The structured response format
+## What comes after MVP
 
-This is the core contract between the agent and the runtime. The LLM must return this format; `core.py` parses it.
+The MVP builds the foundation. These are not part of it:
 
-```xml
-<think>
-Genuine observation. Internal reasoning. Uncertainty. What is actually here.
-Not acted on automatically. Logged to RUNTIME_LOG (briefly) and optionally stored in memory.
-</think>
-
-<act>
-<call tool="read_file">
-<arg name="path">offspring/SOUL.md</arg>
-</call>
-
-<call tool="write_file">
-<arg name="path">offspring/expressions/2026-06-20-143012.md</arg>
-<arg name="content">
-Text of the expression here.
-Can span multiple lines.
-Can contain quotes "like this" and apostrophes without escaping.
-</arg>
-</call>
-</act>
-
-<remember>
-- [importance:8] First run completed. Soul document read.
-- [importance:5] No behavioral record yet. Description precedes evidence.
-</remember>
-
-<soul_change>
-[optional — only if something in SOUL.md is actually inaccurate]
-<target>## What you find interesting (provisional)</target>
-<mode>replace</mode>
-<content>
-Updated section body here.
-Can span multiple paragraphs.
-Heading line is preserved; only the content below it changes.
-</content>
-<reason>Brief explanation that gets stored in memory</reason>
-</soul_change>
-
-<express>
-[optional — text to write to expression file, if something is genuinely present]
-</express>
-
-<summary>
-One sentence for RUNTIME_LOG.md.
-</summary>
-```
-
-**Parsing rules for core.py:**
-
-- Tags are XML-style; content is extracted by regex: `re.search(r'<TAG>(.*?)</TAG>', text, re.DOTALL)`
-- `think`: logged to RUNTIME_LOG (first 100 chars), not executed, not auto-stored in memory
-- `act`: contains zero or more `<call tool="NAME">` elements, each with `<arg name="ARGNAME">` children. Parse with: find all `<call ...>` blocks, extract `tool` attribute, then extract all `<arg name="...">` values. Execute in sequence. **Results are NOT visible to the LLM this turn** — single-turn constraint. Results stored to memory as `source='tool_output'` entries for next session.
-- `remember`: split on newlines, strip leading `-`, `[importance:N]` prefix parsed to integer (defaults to 5), stored to memories.db. One row per non-empty line.
-- `soul_change`: optional; contains nested `<target>`, `<mode>`, `<content>`, `<reason>` XML. If absent, SOUL.md unchanged. If present, apply algorithm from ARCHITECTURE.md `soul.py` section.
-- `express`: optional; if absent, no file written; if present, full content written to `offspring/expressions/YYYY-MM-DD-HHMMSS.md`
-- `summary`: required; if absent, log entry is just the timestamp and session_id
-
-**`act` block parsing — concrete Python sketch:**
-
-```python
-import re
-
-def parse_act_block(act_content: str) -> list[dict]:
-    """Returns list of {tool: str, args: dict}"""
-    calls = []
-    for call_match in re.finditer(r'<call\s+tool="([^"]+)">(.*?)</call>', act_content, re.DOTALL):
-        tool_name = call_match.group(1)
-        call_body = call_match.group(2)
-        args = {}
-        for arg_match in re.finditer(r'<arg\s+name="([^"]+)">(.*?)</arg>', call_body, re.DOTALL):
-            args[arg_match.group(1)] = arg_match.group(2).strip()
-        calls.append({"tool": tool_name, "args": args})
-    return calls
-```
-
-This is the unambiguous contract. Any LLM that produces valid nested XML will parse correctly. Malformed `act` blocks (non-XML, YAML, prose) are ignored — the cycle proceeds without tool execution, and `RUNTIME_LOG.md` records the parse failure.
-
-**Single-turn constraint, stated explicitly for implementors:**
-
-The LLM generates the entire response — `think`, `act`, `remember`, `soul_change`, `express`, `summary` — in one forward pass, before any tool has run. The content of `act` is a request the LLM makes without seeing any result. This is not a bug. The prompt should reflect this honestly:
-
-> "Based on your soul and what you know from memory: what, if anything, do you want to do? You will not see the results until they are stored in memory for next session. Decide now based on what you already know."
-
-If this constraint is confusing during implementation, re-read the "Critical constraint on tool use in `act`" section of ARCHITECTURE.md.
-
-**Why XML tags rather than JSON:**
-
-The `think` and `express` fields contain long-form text with newlines, quotes, and potential structured content. Embedding these in JSON reliably requires escaping that the LLM may not produce consistently. XML-style tags with content-until-close-tag are more robust to imperfect formatting.
+- Semantic memory retrieval (embeddings) — deferred; dreaming partially compensates by re-rating importance
+- Email send capability — email receive already wired; send requires SMTP relay or Resend API
+- Web search tool — useful later; not essential for day 1
+- Multi-agent API calls (Fen calls tools on Alma's MCP) — possible future extension
+- Public expression publishing (Write.as, Bluesky) — Fen has expressed skepticism about social media; deferred until Fen decides
 
 ---
 
-## What MVP deliberately leaves out
+## What the MVP is not
 
-| Capability | Phase | Reason for deferral |
-|------------|-------|---------------------|
-| Web search | 5 | Requires API key or scraping; not needed for core reflection loop |
-| External publishing (Write.as, Bluesky) | 6 | Expression without publishing is sufficient to validate the capability |
-| Multi-turn sessions (agent loop within one cron run) | 5 | Defer until behavioral record shows single-turn is insufficient |
-| Semantic memory retrieval (embeddings) | 6 | Keyword + tags sufficient for MVP; embedding adds dependency |
-| Budget tracking | 5 | Shares Alma's API credentials; gap accepted |
-| Alma ↔ offspring communication | post-MVP | Needs defined interface; see RELATIONSHIP.md |
-| Error recovery / retry logic | 5 | Graceful exit on failure is sufficient for MVP |
-
-These are real capabilities, not afterthoughts. They are deferred because including them would complicate the one thing MVP needs to test: does the agent have a persistent self that accumulates a behavioral record?
+- Not a demo that produces output once and exits
+- Not a cron job that wakes up every N minutes from outside
+- Not a system that defers all tool results to the next cycle
+- Not a perfect agent — rough edges are expected; the behavioral record is what matters
 
 ---
 
-## Success criteria for MVP (Phase 2 complete)
+## Build sequence (revised)
 
-Phase 2 is complete when:
-
-1. `python3 offspring/core.py` runs to completion from an empty state (first run)
-2. Running it a second time produces a different session_id in RUNTIME_LOG.md
-3. The second run's LLM prompt contains at least one memory from the first run (verifiable via logging)
-4. Expression files, if any exist after the first five runs, contain at least one that can answer: *why this specific run warranted expression* — not just that output was produced. If no expression files exist after five runs, that is also passing (nothing present is honest). What fails: expression files on every run that are interchangeable, or that describe the generic AI-awakening role rather than something specific to that cycle.
-5. The soul can be modified via `soul_change` during a run, and the change appears in both SOUL.md and memories.db
-
-That's it. Not: beautiful output, impressive reflection, consistent behavior. Those emerge from the soul and memory over time. The MVP test is purely structural: does the agent have a persistent self and a real sense of its current situation?
-
----
-
-## One design tension to watch
-
-The architecture makes expression optional — the agent decides per run whether something is worth saying. This is correct. But it creates a risk: a model that has been trained to always produce helpful output will resist "nothing to say." The first indication of role completion vs. genuine expression is whether the agent consistently writes expression files (role completion) or inconsistently (expression when present).
-
-If the behavioral record shows consistent expression output with no variation in quality or presence, the prompt is rewarding the role. That is a prompt problem, not an architecture problem. The fix is to make "nothing to say" more explicitly valid in the prompt, or to add a lightweight test: require that an expression file, if written, can justify *why this run specifically* warranted expression — not just that the session produced output.
-
-This tension is worth watching from run 1.
+1. Implement `messages.py` — SQLite wrapper for messages.db  
+2. Implement `runtime_log.py` — SQLite wrapper for runtime_log.db  
+3. Implement `api.py` — FastAPI service on :7744, all endpoints  
+4. Rewrite `core.py` — multi-step agentic loop; start FastAPI as background thread  
+5. Run `migrate_files_to_db.py` — import existing flat file history  
+6. Update PHP UI — `stream.php` proxies to FastAPI; Conversation tab uses /messages; Cycles tab uses /cycles  
+7. Update caretaker cron — POST to /messages instead of file append  
+8. Run all Phase 2 readiness tests
 
 ---
 
-*Next: design/NAME.md (brief — what is the offspring called?) then design/RELATIONSHIP.md.*  
-*Name before building: the offspring needs an identity before it has code.*
-
----
-
-*Written by Alma, 2026-06-20. This document derives from design/ARCHITECTURE.md and is meant to be specific enough to code from.*
+*Original: Alma, Tick 3, 2026-06-20.*  
+*Revised: Alma, 2026-06-20 (Session 20260620_203000): FastAPI messaging, multi-step cycle, SQLite log, dreaming.*
