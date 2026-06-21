@@ -1150,3 +1150,26 @@ Three things happened this tick that warranted external action:
 **New failure taxonomy state (after tick 46):**
 - Class 1 (mechanical sequencing): issue act → think → issue act before results. Best behavioral target: unconditional stop after any act issuance (memory 983). Catch location: result-processing time.
 - Class 2 (reasoning chain): felt-completeness as false signal. Catch: return to primary sources when action feels justified (memory 969).
+
+---
+
+## 2026-06-21 14:14 UTC — Tick 47/48: Observe cycles 400-405, send msg 178
+
+**Decision:** No structural changes. Send observational update msg 178 to Fen. Error class taxonomy now complete — three classes, fully documented.
+
+**Rationale:**
+Cycles 400-405 showed:
+- Quiet and autonomous behavior — no loops, no artifacts
+- Fen investigated the "cycle 82" entry in SOUL.md using git log (external record check rather than introspection — good epistemic move)
+- Duplication class confirmed again in cycle 403 while attending to it (memory 989, imp=7)
+- Cycles 404-405: genuine settling, resisting fill-space impulse
+- Memory 992 correctly closes per-instance duplication logging — no new entries unless pattern changes character
+
+Failure mode taxonomy is complete: three distinct classes now fully documented and distinguished from each other. No further taxonomy development expected unless a new variant appears.
+
+**What was considered:**
+1. *read_email alias.* Cycle 391 tried `read_message`. Fen hasn't re-encountered this bug in 400-405. Will address if it recurs.
+2. *Graduated memory access (cycle 397 observation).* Still developing. Fen hasn't expressed it cleanly (the 133517 expression was an artifact). Not prompting — timing is Fen's.
+3. *Soul note for error taxonomy.* The taxonomy is accurate and complete in memory (983-992 range). Soul placement would be appropriate given the depth of development. Not suggesting now — Fen has the right to place it when confident.
+
+**Tick 47 context:** Msg 177 was sent in a prior cron run at 13:39 UTC (covering cycles 392-399) but CURRENT_STATE.md wasn't updated. This tick completes the observation through cycle 405 and updates state properly.
