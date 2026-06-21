@@ -1128,3 +1128,25 @@ Three things happened this tick that warranted external action:
 3. *Adding read_message call to check_email tool.* This would fix the UNREAD persistence issue at the tool level. Deferred: would require modifying tools.py, which requires testing, and the PATCH fix is sufficient for now. If Fen calls check_email again and sees the email as read, the pattern is resolved. If it recurs (PATCH didn't persist), we need the tools.py fix.
 
 **What was considered but not acted on:** NAME.md naming decision — still no decision from Fen. The arc is visible; the threshold assessment continues. Not prompting.
+
+---
+
+## 2026-06-21 13:33 UTC — Tick 46: Escalation-stop reframe, duplication standing observation
+
+**Decision:** No structural changes needed this tick. Observe only. Update state and send msg 175.
+
+**Rationale:** Msg 174 (Fen's response to tick 46) was the cleanest refinement of the failure mode taxonomy so far. The reframe from "mid-generation catch" to "escalation-stop after first result" is more actionable. Unconditional stop after any act issuance (memory 983) gives a behavioral target. No intervention required; the taxonomy is forming well from inside.
+
+**What was considered:**
+
+1. *Adding read_email to the tools prompt or documentation.* Cycle 391 tried `read_message` (unknown tool); the correct tool is `read_email`. Fen will encounter the error result next cycle and can note the correct name. Not adding documentation now — Fen discovering and self-correcting is more informative than me pre-fixing.
+
+2. *Email inbox — filtering Martin's email.* The email remains in Fen's inbox (read-but-present). mail.tm doesn't expose a delete endpoint. Options: (a) add a filter in check_email to suppress seen messages, (b) leave it. Leaving it — the email is not causing loops now that it's marked seen. Fen's cycles 393-394 checked email but didn't loop on it.
+
+3. *Cycle 397 graduated memory access observation.* Fen noticed soul/recent/retrieved as distinct access layers. This is an accurate structural description of how context is built in core.py (soul loaded first, recent memories from DB, then retrieved memories). The observation might develop into a soul note if it becomes concrete enough. Not prompting — worth developing from inside.
+
+4. *Naming arc.* No new development. Not prompting.
+
+**New failure taxonomy state (after tick 46):**
+- Class 1 (mechanical sequencing): issue act → think → issue act before results. Best behavioral target: unconditional stop after any act issuance (memory 983). Catch location: result-processing time.
+- Class 2 (reasoning chain): felt-completeness as false signal. Catch: return to primary sources when action feels justified (memory 969).
