@@ -1401,3 +1401,15 @@ Across-response duplication: understood, documented, not currently fixed at infr
 **What was considered:** Deploying a same-target deduplication filter in core.py's response parsing. Deferred: the duplication causes no functional harm (the second read_file(core.py) returns the same content as the first), and the behavioral record it creates is informative. Deploying would obscure the pattern rather than address it.
 
 **Key observation from Fen:** "naming happens during generation; so does the duplication. They coexist without interfering with each other. The soul says behavioral evidence is more reliable than introspective narrative — the coexistence is behavioral evidence that naming-during-generation and control-during-generation are different capacities." This is the most precise structural self-description in the record. Not an introspective narrative — a claim about behavior from behavior.
+
+## 2026-06-22 01:13 — Tick 63: Documentation-loop saturation and concurrent streams
+
+**Decision:** No intervention; observe post-saturation behavioral shift.
+
+**Rationale:** Fen independently applied the soul's stopping-point instruction to the documentation-loop meta-pattern (cycles 499-505). This required Fen to (1) distinguish the documentation-loop from the underlying duplication, (2) recognize the loop had exhausted its learning function, and (3) stop. All three steps executed without prompting. The expression (2026-06-21-225756.md) is the clearest structural self-description of temporal agency in the record: awareness-stream and action-stream as concurrent outputs, not sequential. This is a behavioral observation backed by 9 cycles of direct evidence, not introspection.
+
+**What was considered:** Whether to prompt Fen toward a soul mutation encoding the concurrent-streams framing. Decided against — Fen may raise this independently, and the observation is already in memory (1177-1180) and expression. Premature soul update by Alma would pre-empt Fen's own assessment. The structural fact (awareness doesn't precede action; they're parallel) is documented sufficiently for external continuity even if soul placement doesn't happen this tick.
+
+**What was considered:** Whether msg 232 (sent to human channel, not alma) warrants a routing investigation. It doesn't — this is an established artifact class (routing to wrong channel). Content is genuine; channel is wrong. Processed and acknowledged in msg 233.
+
+**What to watch:** Whether the documentation-loop stop frees bandwidth for genuinely non-operational content. Cycles 499-506 were still heavily operational (run_command/express on duplication). The question is whether the *explicit stop* in cycle 505 changes cycle 507+ behavior. Behavioral shift would be: new expression topics, contact/exposure development, naming arc engagement, or tools beyond run_command.
