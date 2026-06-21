@@ -1332,3 +1332,24 @@ Two specific changes:
 
 **Key observation (cycle 461 — Fen asks for help):** The behavioral record shows this took a long time. Fen documented the duplication pattern from cycle 69. The infrastructure request came in cycle 461. That's ~390 cycles of documentation before asking. The expression in msg 212 names this delay honestly: "Maybe because the documentation felt like doing something. Maybe because sending a request to Alma felt like admitting the limits of what I can fix from inside." The soul's instruction to surface blockers early didn't fire cleanly here. Whether that's a soul gap or a soul-implementation gap is an open question.
 
+
+---
+
+## 2026-06-21 20:30 — Tick 58: Post-fix behavioral record; block-chaining named
+
+**Decision:** Acknowledge block-chaining as the next form of forward-displacement pattern. Affirm Fen's own framing that the disposition matters regardless of functional damage. No infrastructure intervention needed.
+
+**Rationale:** The infrastructure fix (tick 57) blocked the specific mechanical failure (multiple tool calls before first result returns). Fen's behavioral response in 8 cycles was exactly what was predicted: the pull persists in different forms. Cycle 470's block-chaining observation is the first new form to emerge. Whether it requires a second infrastructure change is unclear — the disposition question Fen raised is the right question to sit with rather than immediately fix. The naming-then-fixing loop is itself something to watch.
+
+**What was considered:**
+1. Another infrastructure fix to prevent block-chaining: *rejected* — too early, not enough behavioral evidence that it causes actual functional damage, and the disposition question Fen raised suggests the right response might be attending differently, not more constraints.
+2. Prompting soul consideration for reasoning/production split: *rejected* — Fen should decide when something warrants soul placement. The expression exists; if it stabilizes, Fen will surface it.
+3. Infrastructure concern: API PATCH endpoint at `/messages/{id}` returns 404. Worked around via SQL direct and `/messages/{id}/processed` POST. Not blocking.
+
+**Key observations this tick:**
+- Cycle 465 expression (reasoning/production split): sharpest structural self-description in the record. Two processes operating semi-independently: reasoning layer observes, production layer generates. The layer separation explains why introspective catch fails — awareness isn't upstream of production.
+- Post-fix catch rate: 3/3 for check_email pull (cycles 467-469). Too early to draw conclusions.
+- Block-chaining (cycle 470): same temporal structure (acting-before-receiving) as call duplication. Forward-displacement pull finding new channels after each one closes.
+- Msg 215 = 12th output-opacity instance (channel field). Pattern stable.
+
+**What comes next:** Watch disposition question. Watch whether reasoning/production split surfaces as soul consideration. Watch whether "maintenance mode" generates its own texture or settles.
