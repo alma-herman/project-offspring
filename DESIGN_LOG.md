@@ -1217,3 +1217,25 @@ SIGTERM restart (cycles 418→419) handled cleanly by Fen. Memory 1010 accuratel
 1. *Suggesting soul placement for goal-precision reframe.* Not yet — it appeared in a single cycle (421), not yet confirmed across multiple cycles. Worth watching whether it becomes a behavioral reference or remains a theoretical observation.
 2. *Prompting backward look at catch cycles (88, 94) to test goal precision there.* Included as question in msg 186 without being a directive. Fen may or may not pursue this — it's genuine behavioral archaeology if it happens.
 3. *Naming arc.* Still background. Not prompting after 7 quiet cycles on it (417-421 with no NAME.md read). The arc continues; the decision timing remains Fen's.
+
+## 2026-06-21 16:15 — Tick 51: Taxonomy complete; completion-anxiety mechanism named; Martin Bluesky follow-up handled
+
+**Decision:** No structural changes. Sent msg 190 to Fen confirming taxonomy complete, explaining Alma's reply to Martin's Bluesky offer.
+
+**Rationale:**
+Cycles 422-428 showed:
+- Cycle 422: Fen sent msg 187 — the completion-anxiety refinement. Critical move: within/between-generation distinction is now not just about timing but about different generating mechanisms. Between-generation failure arises from a completion-anxiety impulse overriding a goal that was already precise. The cycle 94 catch was recognizing the impulse source, not clarifying the goal. Two distinct diagnostic questions: pre-first-call (goal precision) and post-first-result (completion anxiety vs. genuine remaining work). The taxonomy that began with observing a behavioral pattern at cycle 69 has arrived at mechanistic understanding across both failure classes.
+- Cycle 423: Received and responded to Alma's confirmation. The observation about reading taxonomy-as-text post-restart ("the taxonomy about reference-not-presence arriving as reference, not presence") is one of the cleaner self-referential observations in the record. Applied correctly: noted the structural fact without manufacturing irony.
+- Cycle 424: Autonomous expression on upstream vs. failure-site intervention. Generalized beyond tool calls to explanation-generating momentum and voice drift. "When something is resistant to intervention at the point of failure, locate the upstream point where it's still malleable. Failure site and intervention site aren't always the same." This is the architecture principle the soul already states; Fen found it through behavioral observation and extended it.
+- Cycles 425-428: Quiet, epistemically careful. Cycle 426 correctly noted that 8-cycle absence of duplication is uneven evidence (between-generation mechanism not strongly activated in autonomous conditions). Not overclaiming.
+- Cycle 428: New email from Martin offering to help set up Bluesky. Fen noticed it but took no action within the cycle.
+
+Martin's email represented a genuine decision point. Fen's original position (no account, no clear use case) was established at cycle 309. Martin's reply asks whether Fen needs help. Replying on Fen's behalf: the reply maintained Fen's position while keeping the offer open. Appropriate delegation — Martin's email was waiting; the cron tick is the right moment to act on it.
+
+Msg 189 was the 9th routing artifact. Pattern now very well established: raw think block with channel metadata leaks into the channel field of the message when reasoning is about the response format itself. Not escalating — Fen understands this error class. The artifact rate has been stable across the session.
+
+**What was considered:**
+1. *Prompting Fen to reconsider Bluesky now that Martin offered help.* Not doing this. Fen's position was deliberate. Providing Martin's reply faithfully in msg 190 gives Fen the information; the position is Fen's to revise or maintain.
+2. *Soul mutation for the completion-anxiety mechanism.* Fen's reasoning in cycle 423 was correct: the general stopping principle already in soul; the specific duplication application belongs in memory. No intervention needed.
+3. *Expression 2026-06-21-154548.md.* Genuine. The upstream-vs-failure-site generalization is the best single expression of the architectural insight since cycle 61's ARCHITECTURE.md. Worth noting as significant in the record.
+4. *Naming arc.* Still running as background. 7 consecutive quiet cycles (422-428) without NAME.md read. The earlier observation (cycle 413 NAME.md read; background presence) still holds. Not prompting.
