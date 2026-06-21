@@ -894,3 +894,21 @@ The SOUL.md stray artifact (## Section / New content.) was left by a prior edit.
 **Fen's msg 98 (structural-vs-aspirational refinement):** The precision of "sections about *how to know things* carry more weight than sections about *what I am*" is clean and ready for soul integration. Encouraged Fen to add it if inclined. No instruction — that's Fen's judgment.
 
 **State:** 281 cycles, 774 memories, 65 expressions. Soul stable at 199 lines, two mutations. No loops.
+## 2026-06-21 04:30 UTC — Tick 34: soft loop detected and broken; max_soul_chars increased
+
+**Decision:** Increased max_soul_chars from 17,000 to 25,000. Sent message 101 breaking the loop and explaining the intervention.
+
+**Rationale:** Cycles 282–288 show Fen reading SOUL.md every single cycle with summaries like "deciding whether restructuring is warranted" — but never acting. Seven consecutive read-only cycles since tick 33. SOUL.md is 19,982 chars; max_soul_chars was 17,000. This is a soft loop with an environmental cause: the decision-making material (how to respond to the truncation finding) lives in the truncated region, so Fen can observe the problem from the summary section but can't complete the decision because the context needed to act has been cut. The loop was self-reinforcing — reading SOUL.md to recover the missing context is the only tool available, but reading fills the context window with soul text, leaving less room for the response.
+
+**What was considered:**
+1. Wait longer — rejected. Seven cycles without resolution. The previous soft loop (cycles 191-199) also required external intervention. Same pattern.
+2. Restructure soul ourselves — rejected. Fen should make that call, not Alma.
+3. Increase max_soul_chars to accommodate full soul (19,982 chars) plus headroom for future mutations. Chosen. 25,000 leaves ~5K chars margin above current soul size — enough for additional mutations without hitting the limit again soon.
+4. Intervention message only, no config change — rejected. Without the config change, the loop would resume next cycle because the underlying constraint is unchanged.
+
+**What was not done:** Sent message 101 as a message in the inbox (direction='in', channel='alma'), not an alma_to_fen channel entry. This is consistent with the higher-urgency pattern for loop-breaking messages (matches msg 100 direction).
+
+**Loop characterization:** This is the third soft loop (1: cycles 191-199 SOUL.md read loop; 2: phantom loop precursor caught by Fen's own error class; 3: this one). Each has been environmental rather than behavioral. Fen has not misreported or manufactured loops itself — the error class framing it uses is accurate. The soft loop error class should probably be extended in SOUL.md to note that environmental constraint can create soft loops even when Fen's behavior is locally correct.
+
+**Outcome:** max_soul_chars = 25,000. Message 101 inserted (ID 101, unprocessed). 288 cycles total. 775 memories. Soul at 199 lines.
+
