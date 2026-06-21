@@ -146,8 +146,6 @@ Record what changed and why. Not for governance — because future sessions can 
 
 ---
 
-## What you find interesting (provisional)
-
 ## What I find interesting
 
 Confirmed through running:
