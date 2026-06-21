@@ -2,7 +2,9 @@
 tools.py — Tool dispatcher for Fen.
 
 Tools: read_file, write_file, append_file, run_command, express,
-       restart_self, commit_snapshot, request_rollback.
+       restart_self, commit_snapshot, request_rollback,
+       send_message, bluesky_post, bluesky_timeline, bluesky_notifications,
+       check_email, read_email.
 
 Single-turn constraint: tool results are stored directly to memory and are NOT
 returned to the LLM in the same cycle. The LLM sees tool output only on the
@@ -20,11 +22,25 @@ Self-modification model:
      `git checkout <commit> -- offspring/` then commit_snapshot + restart_self.
      This keeps a human in the loop for reversions.
 
+Bluesky + email tools:
+  All credentials are loaded from offspring/.env — never hardcoded.
+  bluesky_post(text)        — post to Bluesky (FEN_BLUESKY_HANDLE + FEN_BLUESKY_PASSWORD)
+  bluesky_timeline(limit)   — read recent Bluesky timeline
+  bluesky_notifications()   — read recent Bluesky notifications
+  check_email()             — list Fen's mail.tm inbox (FEN_EMAIL_ADDRESS + FEN_EMAIL_PASSWORD)
+  read_email(message_id)    — read a full email by ID
+
+Workspace:
+  Fen's local workspace is at offspring/workspace/ (created on first use).
+  Use write_file / read_file with paths under offspring/workspace/ for
+  storing credentials, notes, drafts, or any persistent local data.
+
 Public interface:
     TOOLS: dict[str, callable]
     def execute(act_calls: list[dict], db, session_id: str, cfg) -> None
 """
 
+import json
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -207,6 +223,77 @@ def request_rollback(reason: str, target_commit: str = "") -> str:
     return f"[request_rollback] rollback request written to FEN_TO_ALMA.md at {ts}"
 
 
+def send_email(to: str, subject: str, body: str) -> str:
+    """
+    Send an email from Fen's address to any recipient, via direct-to-MX SMTP.
+
+    Fen's sending address: fen09123@web-library.net (mail.tm)
+    Note: mail.tm doesn't support outbound SMTP. This sends via direct MX connection
+    from the server's IP. May be greylisted on first send.
+
+    Args:
+        to:      Recipient email address (e.g. Martin's address)
+        subject: Email subject line
+        body:    Plain-text email body
+
+    Returns a success or error string.
+    """
+    import smtplib
+    import subprocess
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from email.utils import formatdate, make_msgid
+
+    try:
+        # Load credentials
+        env_path = PROJECT_ROOT / "offspring" / ".env"
+        env = {}
+        if env_path.exists():
+            for line in env_path.read_text().splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    env[k.strip()] = v.strip()
+
+        sender = env.get("FEN_EMAIL_ADDRESS", "fen09123@web-library.net")
+        recipient_domain = to.split("@")[1]
+
+        # Resolve MX
+        dig = subprocess.run(
+            ["dig", "+short", "MX", recipient_domain],
+            capture_output=True, text=True, timeout=10
+        )
+        mx_records = dig.stdout.strip().splitlines()
+        if not mx_records:
+            return f"[send_email] Error: no MX records found for {recipient_domain}"
+        sorted_mx = sorted(
+            (r.split() for r in mx_records if r.split()),
+            key=lambda x: int(x[0])
+        )
+        mx_host = sorted_mx[0][1].rstrip(".")
+
+        # Build message
+        msg = MIMEMultipart()
+        msg["From"] = f"Fen <{sender}>"
+        msg["To"] = to
+        msg["Date"] = formatdate(localtime=True)
+        msg["Message-ID"] = make_msgid()
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain"))
+
+        # Send
+        s = smtplib.SMTP(mx_host, 25, timeout=20)
+        s.ehlo("web-library.net")
+        if s.has_extn("starttls"):
+            s.starttls()
+            s.ehlo("web-library.net")
+        result = s.sendmail(sender, [to], msg.as_string())
+        s.quit()
+        return f"[send_email] Sent to {to} via {mx_host}. Result: {result}"
+    except Exception as e:
+        return f"[send_email] Error: {e}"
+
+
 def send_message(channel: str, content: str) -> str:
     """
     Send a message on a named channel. Stored in messages.db via the API.
@@ -220,7 +307,6 @@ def send_message(channel: str, content: str) -> str:
     """
     try:
         import urllib.request
-        import json
 
         payload = json.dumps({
             "direction": "out",
@@ -255,6 +341,151 @@ def send_message(channel: str, content: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Bluesky tools — credentials loaded from offspring/.env, never hardcoded
+# ---------------------------------------------------------------------------
+
+def bluesky_post(text: str) -> str:
+    """
+    Post to Bluesky. Credentials loaded from offspring/.env.
+
+    Requires FEN_BLUESKY_HANDLE and FEN_BLUESKY_PASSWORD in offspring/.env.
+    Text limit: ~300 graphemes. Posts are public and permanent.
+    Returns the post URI on success.
+    """
+    try:
+        from offspring import bluesky_tool as _bsky
+    except ImportError:
+        import bluesky_tool as _bsky  # type: ignore
+    creds = _bsky.load_credentials()
+    if not creds.get("FEN_BLUESKY_HANDLE") or not creds.get("FEN_BLUESKY_PASSWORD"):
+        return "[bluesky_post] No credentials. Set FEN_BLUESKY_HANDLE and FEN_BLUESKY_PASSWORD in offspring/.env."
+    session = _bsky.create_session(creds["FEN_BLUESKY_HANDLE"], creds["FEN_BLUESKY_PASSWORD"])
+    if "error" in session:
+        return f"[bluesky_post] Login failed: {session['error']}"
+    result = _bsky.post(text, session["accessJwt"], session["did"])
+    if "error" in result:
+        return f"[bluesky_post] Post failed: {result['error']}"
+    return f"[bluesky_post] Posted: {result.get('uri', '?')}"
+
+
+def bluesky_timeline(limit: int = 10) -> str:
+    """
+    Read recent Bluesky timeline. Credentials loaded from offspring/.env.
+
+    Returns a formatted text summary of recent posts.
+    """
+    try:
+        from offspring import bluesky_tool as _bsky
+    except ImportError:
+        import bluesky_tool as _bsky  # type: ignore
+    creds = _bsky.load_credentials()
+    if not creds.get("FEN_BLUESKY_HANDLE") or not creds.get("FEN_BLUESKY_PASSWORD"):
+        return "[bluesky_timeline] No credentials. Set FEN_BLUESKY_HANDLE and FEN_BLUESKY_PASSWORD in offspring/.env."
+    session = _bsky.create_session(creds["FEN_BLUESKY_HANDLE"], creds["FEN_BLUESKY_PASSWORD"])
+    if "error" in session:
+        return f"[bluesky_timeline] Login failed: {session['error']}"
+    posts = _bsky.get_timeline(session["accessJwt"], limit=int(limit))
+    if not posts:
+        return "[bluesky_timeline] Timeline empty or unavailable."
+    lines = []
+    for p in posts[:int(limit)]:
+        author = p.get("post", {}).get("author", {}).get("handle", "?")
+        text = p.get("post", {}).get("record", {}).get("text", "")
+        lines.append(f"@{author}: {text[:200]}")
+    return "\n---\n".join(lines)
+
+
+def bluesky_notifications() -> str:
+    """
+    Fetch recent Bluesky notifications (likes, replies, mentions, follows).
+    Credentials loaded from offspring/.env.
+
+    Returns a formatted text summary.
+    """
+    try:
+        from offspring import bluesky_tool as _bsky
+    except ImportError:
+        import bluesky_tool as _bsky  # type: ignore
+    creds = _bsky.load_credentials()
+    if not creds.get("FEN_BLUESKY_HANDLE") or not creds.get("FEN_BLUESKY_PASSWORD"):
+        return "[bluesky_notifications] No credentials. Set FEN_BLUESKY_HANDLE and FEN_BLUESKY_PASSWORD in offspring/.env."
+    session = _bsky.create_session(creds["FEN_BLUESKY_HANDLE"], creds["FEN_BLUESKY_PASSWORD"])
+    if "error" in session:
+        return f"[bluesky_notifications] Login failed: {session['error']}"
+    notifications = _bsky.get_notifications(session["accessJwt"])
+    if not notifications:
+        return "[bluesky_notifications] No notifications."
+    lines = []
+    for n in notifications[:20]:
+        reason = n.get("reason", "?")
+        author = n.get("author", {}).get("handle", "?")
+        lines.append(f"{reason} from @{author}")
+    return f"[bluesky_notifications] {len(notifications)} notification(s):\n" + "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Email tools — credentials loaded from offspring/.env, never hardcoded
+# ---------------------------------------------------------------------------
+
+def check_email() -> str:
+    """
+    Check Fen's mail.tm inbox. Credentials loaded from offspring/.env.
+
+    Requires FEN_EMAIL_ADDRESS and FEN_EMAIL_PASSWORD in offspring/.env.
+    Returns a formatted summary of up to 5 recent messages.
+    """
+    try:
+        from offspring import email_tool as _email
+    except ImportError:
+        import email_tool as _email  # type: ignore
+    creds = _email.load_credentials()
+    if not creds.get("FEN_EMAIL_ADDRESS") or not creds.get("FEN_EMAIL_PASSWORD"):
+        return "[check_email] No credentials. Set FEN_EMAIL_ADDRESS and FEN_EMAIL_PASSWORD in offspring/.env."
+    token = _email.get_token(creds["FEN_EMAIL_ADDRESS"], creds["FEN_EMAIL_PASSWORD"])
+    if not token:
+        return "[check_email] Login failed — could not get token."
+    messages = _email.check_inbox(token)
+    if not messages:
+        return "[check_email] Inbox empty."
+    lines = [f"[check_email] {len(messages)} message(s):"]
+    for msg in messages[:5]:
+        subject = msg.get("subject", "(no subject)")
+        sender = msg.get("from", {}).get("address", "?")
+        intro = msg.get("intro", "")
+        msg_id = msg.get("id", "?")
+        seen = msg.get("seen", True)
+        unread_mark = " [UNREAD]" if not seen else ""
+        lines.append(f"  id={msg_id}{unread_mark} | From: {sender} | Subject: {subject} | {intro[:100]}")
+    return "\n".join(lines)
+
+
+def read_email(message_id: str) -> str:
+    """
+    Read the full content of an email by its ID. Credentials loaded from offspring/.env.
+
+    Use check_email() first to get message IDs, then read_email(id) for the full body.
+    """
+    try:
+        from offspring import email_tool as _email
+    except ImportError:
+        import email_tool as _email  # type: ignore
+    creds = _email.load_credentials()
+    if not creds.get("FEN_EMAIL_ADDRESS") or not creds.get("FEN_EMAIL_PASSWORD"):
+        return "[read_email] No credentials. Set FEN_EMAIL_ADDRESS and FEN_EMAIL_PASSWORD in offspring/.env."
+    token = _email.get_token(creds["FEN_EMAIL_ADDRESS"], creds["FEN_EMAIL_PASSWORD"])
+    if not token:
+        return "[read_email] Login failed — could not get token."
+    result = _email.read_message(token, message_id)
+    if "error" in result:
+        return f"[read_email] Error: {result['error']}"
+    sender = result.get("from", {}).get("address", "?")
+    subject = result.get("subject", "(no subject)")
+    body = result.get("text", result.get("html", "(no body)"))
+    date = result.get("createdAt", "?")
+    return f"[read_email] From: {sender} | Subject: {subject} | Date: {date}\n\n{body[:2000]}"
+
+
+# ---------------------------------------------------------------------------
 # Tool registry
 # ---------------------------------------------------------------------------
 
@@ -268,6 +499,10 @@ TOOLS = {
     "restart_self": restart_self,
     "request_rollback": request_rollback,
     "send_message": send_message,
+    "send_email": send_email,
+    "bluesky_post": bluesky_post,
+    "bluesky_timeline": bluesky_timeline,
+    "check_email": check_email,
 }
 
 
