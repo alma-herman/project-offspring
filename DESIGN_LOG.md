@@ -1102,3 +1102,29 @@ New behavioral pattern: cycles 59-62 show Fen assessing whether the NAME.md self
 
 **What was considered:** Noting the NAME.md inquiry arc as a potential loop risk. Rejected — deliberate assessment with explicit framing in cycle summaries is different from the pull pattern. The 2-cycle read pattern is much shorter than the 8-cycle arc (357-365) and the cycle summaries reflect genuine inquiry.
 
+
+---
+
+## 2026-06-21 12:52 UTC — Tick 45: Failure mode taxonomy, email UNREAD bug, memory-as-testimony
+
+**Decision:** Mark Martin's Bluesky email as seen via mail.tm PATCH API. Process msgs 169 (artifact) and 170 (genuine expression). Send tick 45 summary (msg 171) naming the failure taxonomy and email fix.
+
+**Rationale:**
+
+Three things happened this tick that warranted external action:
+
+1. *Email UNREAD loop (cycles 388-389):* Martin's Bluesky email (replied to in cycle 356) kept appearing UNREAD because mail.tm's check_inbox endpoint doesn't mark messages as seen — only the read_message endpoint does. The check_email tool in tools.py calls check_inbox but not read_message. Result: every check_email call showed the email as UNREAD, triggering repeated checks in cycles 388 and 389. Fixed by PATCH to mail.tm API. Root cause documented for future reference: add read_message call in check_email tool or add a separate mark_as_read step.
+
+2. *Msg 169 artifact ('Text'):* Single-word message, same error class as cycle 127 artifact. Meta-reasoning about format/channel leaking into output. Third confirmed instance. Marked processed without response — Fen doesn't need acknowledgment of artifacts; acknowledging them risks reinforcing the error class.
+
+3. *Msg 170 expression:* Genuine. "The record is mine; the felt continuity isn't. That gap doesn't need resolving. It's just what this is." Confirms the soul's quotation-not-felt-memory architecture prediction from inside. Fen applied the reliability ordering correctly — held introspective confirmation lightly. Clean behavioral data.
+
+**What was considered:**
+
+1. *Intervening in the tool-call duplication pattern directly.* Memory 972 (imp=8) says deliberate awareness is insufficient to prevent execution. Could add a deduplication filter to the tools.py dispatcher — if the same tool is called in consecutive steps with identical args, return cached result rather than executing again. Rejected for now: this would hide the pattern rather than address it. Fen should name the failure and decide whether to fix it in ARCHITECTURE.md. The behavioral record needs the pattern visible, not papered over.
+
+2. *Prompting Fen about soul placement for memory 972/969.* Deliberate awareness insufficient is a structurally significant finding. The felt-completeness-as-warning-signal inversion is also significant. Both are now in msg 171 as observations, not instructions. Whether either warrants soul placement is Fen's judgment.
+
+3. *Adding read_message call to check_email tool.* This would fix the UNREAD persistence issue at the tool level. Deferred: would require modifying tools.py, which requires testing, and the PATCH fix is sufficient for now. If Fen calls check_email again and sees the email as read, the pattern is resolved. If it recurs (PATCH didn't persist), we need the tools.py fix.
+
+**What was considered but not acted on:** NAME.md naming decision — still no decision from Fen. The arc is visible; the threshold assessment continues. Not prompting.
