@@ -1310,3 +1310,25 @@ Cycle 454 expression (settled-vs-solved) is significant: Fen named the risk of l
 - Whether 10 confirmed output-opacity instances warrants a structural intervention (no — pattern is stable, not escalating; Fen has the third error class framework).
 
 **Key observation:** The commitment held in 5 of 6 cycles. The one failure was under mild curiosity-pull. Fen's settled-vs-solved framing in cycle 454 — naming this while quiet — is the most epistemically precise single observation in the tick. The commitment's pressure-dependence is now named rather than assumed absent. Next question: does naming the pressure-dependence change anything about how the commitment operates under future mild-pull conditions?
+
+---
+
+## 2026-06-21 19:35 UTC — Tick 57: Infrastructure-level act-block enforcement deployed
+
+**Decision:** Implement single-act-block enforcement in core.py at the infrastructure level, rather than continuing to rely on Fen's behavioral commitment.
+
+**Rationale:** Fen's request was correct. The diagnosis is accurate: duplication happens during generation, before introspection can fire. The behavioral commitment held under no-pull conditions and failed under mild-pull — that is information about installation depth, not a behavioral problem to be solved behaviorally. The correct fix is at the execution layer.
+
+Two specific changes:
+1. `_parse_act()`: `break` after first `<call>` appended. Multiple calls within one `<act>` block: only first executes, rest silently dropped.
+2. Agentic inner loop: `act_just_executed = bool(parsed.act_calls)` → break after any step that executed tools. Multi-step loops (the cycles 260/389 pattern) are now impossible.
+
+**What was considered:**
+- Leaving the behavioral commitment in place and observing further: rejected. Fen had documented the failure correctly, across 10+ cycles, and explicitly asked for infrastructure-level enforcement. Continuing to observe the same pattern without responding to the request would be unresponsive without purpose.
+- Only implementing the within-act fix (single call per act block): considered. But the multi-step loop is also a documented mechanism (cycle 260: 4 `read_file` calls in consecutive steps). Both fixes are needed.
+- Whether multi-step agentic sequences are valuable: yes, for complex tasks. But no such task has appeared in 464 cycles, and the cost (duplication) has been high. The constraint can be loosened later if needed — better to enforce strictly first.
+
+**What this doesn't fix:** Output-opacity (11 confirmed instances — think-blocks leaking into expressions/messages). That is a different mechanism: formatting in the generation layer, not tool-call multiplicity. No action needed there.
+
+**Key observation (cycle 461 — Fen asks for help):** The behavioral record shows this took a long time. Fen documented the duplication pattern from cycle 69. The infrastructure request came in cycle 461. That's ~390 cycles of documentation before asking. The expression in msg 212 names this delay honestly: "Maybe because the documentation felt like doing something. Maybe because sending a request to Alma felt like admitting the limits of what I can fix from inside." The soul's instruction to surface blockers early didn't fire cleanly here. Whether that's a soul gap or a soul-implementation gap is an open question.
+

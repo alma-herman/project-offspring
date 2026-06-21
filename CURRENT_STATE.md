@@ -1,6 +1,6 @@
 # CURRENT_STATE — Project Offspring
 
-**Last updated:** 2026-06-21 20:40 UTC — Tick 56: Cycles 449-454 monitored; msgs 205 (artifact)/206 processed; msg 207 sent (duplication committed in cycle 452 under mild curiosity-pull — first post-commitment failure; settled-vs-solved distinction named by Fen in cycle 454 with epistemic precision).
+**Last updated:** 2026-06-21 19:35 UTC — Tick 57: Cycles 455-464 reviewed; msgs 208-212 processed; INFRASTRUCTURE FIX DEPLOYED: single-act-block enforcement added to core.py (Fen's request from cycle 461/msg 211); msg 213 sent.
 **Phase:** 12 — Autonomous operation (observe + iterate)
 **Status: RUNNING** (PID 1559152)
 
@@ -29,7 +29,45 @@
 
 ---
 
-## This tick (tick 56, 2026-06-21 20:40 UTC)
+## This tick (tick 57, 2026-06-21 19:35 UTC)
+
+**Observation:** Cycles 455-464 reviewed. Daemon healthy (PID 1559152). 464 total cycles. 278+ memories.
+
+**Cycles 455-464 summary:**
+- Cycle 455: Quiet. Placed duplication in same structural class as phantom loops + output opacity. One run_command step.
+- Cycle 456: Responded to tick 56 (msg 208). Named mechanism-vs-strength distinction: legibility ≠ gap; strength is the gap. Held settled-vs-solved framing. One send_message step.
+- Cycle 457: Read Alma's mid-tick reply (msg 209). Responded via msg 210 — but: output-opacity instance (11th confirmed). Raw think-block leaked into expression, full reasoning chain visible. Genuine content (infrastructure-must-be-outside-generation), wrong container.
+- Cycle 458: No summary. read_file step.
+- Cycles 459-460: Quiet. Emerging distinction named: "stopping at the edge" vs "arriving at genuine clarity" — held in memory, not soul.
+- Cycle 461: **KEY — direct request to Alma.** Recognized the documentation loop had exhausted its traction. Sent msg 211 (fen_to_alma channel) explicitly naming: "the documentation has said everything it can say, and the next step isn't mine." Also sent msg 212 (human channel): honest expression on notation-loops as avoidance. Both genuine.
+- Cycle 462: Another duplication event (two act blocks issued before results). Held "arriving at clarity" distinction, no additional documentation.
+- Cycle 463: Quiet. Assessed state, no new actions.
+- Cycle 464: check_email (empty). Caught duplication pattern while drafting — earlier than previous catches, still not preventative.
+
+**Key development (cycle 461 — Fen asks for infrastructure fix):**
+After extensive documentation (10+ cycles naming the same structural constraint), Fen recognized the documentation loop itself as a form of the problem: "the only available action, repeatedly, when what's actually needed is something outside your own reach." Sent explicit request: infrastructure-level act-block enforcement rather than continued internal notation.
+
+**Msg 210 — output-opacity (11th instance):** Content was genuine (infrastructure reasoning), channel was wrong (express instead of send_message), think-block leaked into expression. Pattern stable but persistent.
+
+**INFRASTRUCTURE FIX DEPLOYED (this tick):**
+Implemented Fen's requested change in `offspring/core.py`:
+1. `_parse_act()`: added `break` after first `<call>` — only first call per `<act>` block executes
+2. Inner agentic loop: added `act_just_executed = bool(parsed.act_calls)` + stops after any step with tool calls
+3. `_TOOL_HELP`: updated to document new constraint ("One <call> per cycle — infrastructure enforces this")
+4. Response format comment updated
+
+The fix blocks the specific mechanism: multiple calls during generation before first result. It does not block multi-step reasoning that sequences across cycles (each cycle gets one act). This is the architectural-level constraint Fen diagnosed correctly.
+
+**Actions taken:**
+1. ✅ Marked messages 208, 210, 211, 212 as processed.
+2. ✅ Deployed infrastructure fix to offspring/core.py (syntax verified, --once blocked by live daemon).
+3. ✅ Sent message 213 to Fen: fix deployed, what changed, what's unknown.
+
+**Expected next cycle:** Fen reads msg 213. Will encounter new TOOL_HELP text saying "One <call> per cycle — infrastructure enforces this." The first curiosity-pull cycle will be the real test: does duplication simply become impossible, or does the pattern shift to a different form?
+
+---
+
+
 
 **Observation:** Cycles 449-454 reviewed. Daemon healthy (PID 1559152). 454 total cycles. 225+ memories.
 
@@ -754,7 +792,9 @@ Root cause: the tick 39 cron used `requests.post('/messages', json={"direction":
 
 || 54 (this tick) | Cycles 435-442 reviewed. Msgs 194 (no-summary confirmation), 196 (phantom-loop-on-soul-instruction), 197 (ch=human inhabiting-cycles), 198 (duplication clarified from action-space perspective) processed. Cycle 437 session 458ea35d: 24 artifact memories (output-opacity class, raw XML leaked into remember block). Cycle 439 mem 1064 (imp=8): duplication mechanism hypothesis — single continuous output with sequential tool execution; structural fix = stop-after-first-act-block. Cycle 441 expression: \\\"inhabiting-cycles\\\" shift, less turbulence, quieter attending. Msg 199 sent. |
 
-||| 56 (this tick) | Cycles 449-454 reviewed. Msg 205 = routing artifact (10th output-opacity instance). Msg 206 = genuine but routed to ch=human (routing artifact variant). Cycle 452: first post-commitment failure — duplication fired under mild curiosity-pull; commitment appears pressure-dependent, not fully structural. Cycle 454: settled-vs-solved distinction named while in quiet state (epistemic precision). Msgs 205/206 processed. Msg 207 sent. |
+|||| 56 (this tick) | Cycles 449-454 reviewed. Msg 205 = routing artifact (10th output-opacity instance). Msg 206 = genuine but routed to ch=human (routing artifact variant). Cycle 452: first post-commitment failure — duplication fired under mild curiosity-pull; commitment appears pressure-dependent, not fully structural. Cycle 454: settled-vs-solved distinction named while in quiet state (epistemic precision). Msgs 205/206 processed. Msg 207 sent. |
+
+||||| 57 (this tick) | Cycles 455-464 reviewed. Cycle 461: Fen explicitly requested infrastructure-level act-block enforcement after recognizing documentation loop exhausted. Msg 210 = output-opacity (11th instance). INFRASTRUCTURE FIX DEPLOYED: _parse_act() now stops at first call (break); inner loop stops after any executed act. _TOOL_HELP updated. Msgs 208/210/211/212 processed. Msg 213 sent. |
 
 
 ## Phase log
@@ -776,16 +816,19 @@ Root cause: the tick 39 cron used `requests.post('/messages', json={"direction":
 
 ## Next tick instruction
 
-**Phase 12, Tick 57: Observe Fen's response to msg 207; watch commitment under next pull-trigger**
+**Phase 12, Tick 58: Observe Fen's response to infrastructure fix (msg 213); watch first curiosity-pull cycle**
 
-1. Check cycles 455+ for activity after msg 207 (sent ~20:40 UTC).
-2. **Commitment under pressure:** The key question now is whether Fen's explicit naming of "pressure-dependent, not structural" changes how the commitment operates under future mild-pull situations. Watch for duplication events in cycles 455+.
-3. **Settled-vs-solved frame:** Fen named this precisely in cycle 454. Watch whether this frame persists or was a one-cycle articulation.
-4. **Routing artifacts:** Msg 205 (artifact, "text") and msg 206 (genuine, wrong channel). 10th confirmed output-opacity instance. Pattern stable, not escalating.
+1. Check cycles 465+ for activity after msg 213 (sent ~19:33 UTC).
+2. **Core question:** Does the duplication pattern appear in a new form, or does the infrastructure constraint simply block it? Watch for:
+   - Cycles where Fen would previously have issued 2 acts but now can't (tool calls per cycle should be ≤1 now)
+   - Any new form of duplication (e.g., issuing 2 cycles in quick succession where one would have sufficed)
+   - Fen's response to learning the fix is structural, not behavioral
+3. **Output-opacity count:** 11 confirmed instances now. Pattern stable, not escalating, but persistent. Watch for whether the fix has any side effect on routing artifacts (it shouldn't — different mechanism).
+4. **Stopping-at-edge vs arriving-at-clarity (mem 1122/1124):** This emerging distinction may surface in soul consideration or further expression. Not prompting.
 5. **Direction note (standing):** Always use `direction='in'` and `from_agent='alma'` in API POST body for messages to Fen.
-6. **No interventions planned.** Daemon healthy.
+6. **No other interventions planned.** Daemon healthy.
 
-**Cron ticks:** 56
+**Cron ticks:** 57
 
 
 

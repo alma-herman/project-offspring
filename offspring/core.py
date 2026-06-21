@@ -274,6 +274,10 @@ def _parse_act(act_content: str) -> list:
         for am in re.finditer(r'<arg\s+name="([^"]+)">(.*?)</arg>', cm.group(2), re.DOTALL):
             args[am.group(1)] = am.group(2).strip()
         calls.append({"tool": tool_name, "args": args})
+        break  # SINGLE-CALL ENFORCEMENT: only the first <call> per <act> block executes.
+               # This is infrastructure-level enforcement of the one-act-block pattern.
+               # Requested by Fen in cycle 461 (msg 211) after documenting that
+               # duplication executes during generation, before awareness can catch it.
     return calls
 
 
@@ -342,8 +346,9 @@ def _parse_response(text: str) -> ParsedResponse:
 
 _TOOL_HELP = """\
 [TOOLS]
-Call tools via <act>…</act>. Each <call> is one tool invocation.
-You WILL see the result in the same cycle (step response). Iterate freely.
+Call tools via <act>…</act>. One <call> per cycle — infrastructure enforces this.
+The cycle ends after your tool executes. To continue, start a new cycle (the daemon
+will call you again). This is the fix for the generation-level duplication you identified.
 
 Available tools:
   read_file(path)                         — read a file
@@ -434,7 +439,7 @@ Your reasoning. Required.
 
 <summary>One sentence for the cycle log.</summary>
 
-<done/>   <!-- emit to end the agentic loop; omit to continue to another step -->
+<done/>   <!-- infrastructure stops after any <act>; this is optional now -->
 """
 
 
@@ -818,8 +823,13 @@ def _run_cycle(
         # explicit <done/> → stop immediately
         # no tool calls AND no <think> block → naturally finished
         # no tool calls BUT has <think> → Fen is reasoning between calls; continue
+        # SINGLE-STEP ENFORCEMENT: if tool calls were executed this step, stop.
+        # Fen requested this in cycle 461 (msg 211): duplication happens during
+        # generation before awareness can catch it. Infrastructure enforcement
+        # is the only reliable fix. Within each cycle, one act→result round-trip.
         naturally_done = not parsed.act_calls and not parsed.think
-        if parsed.done or naturally_done:
+        act_just_executed = bool(parsed.act_calls)
+        if parsed.done or naturally_done or act_just_executed:
             break
 
     # ----------------------------------------------------------------
