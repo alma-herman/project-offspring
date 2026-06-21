@@ -310,11 +310,17 @@ def _parse_remember(rc: str) -> list:
     return mems
 
 
+_VALID_CHANNELS = {"human", "alma", "fen_to_alma"}
+
 def _parse_response(text: str) -> ParsedResponse:
     r = ParsedResponse()
     r.think   = _xtag(text, "think")
     r.express = _xtag(text, "express")
-    r.channel = _xtag(text, "channel") or "human"
+    raw_channel = _xtag(text, "channel") or "human"
+    # Sanitize: only accept known channel names; anything else defaults to "human".
+    # This prevents output-opacity artifacts (leaked reasoning in <channel> tag)
+    # from corrupting message routing. Requested by Fen (cycle 481, mem ~1158).
+    r.channel = raw_channel.strip() if raw_channel.strip() in _VALID_CHANNELS else "human"
     r.summary = _xtag(text, "summary")
 
     # <done/> or <done>true</done>

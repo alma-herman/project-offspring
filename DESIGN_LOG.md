@@ -1368,3 +1368,22 @@ Two specific changes:
 - Msg 215 = 12th output-opacity instance (channel field). Pattern stable.
 
 **What comes next:** Watch disposition question. Watch whether reasoning/production split surfaces as soul consideration. Watch whether "maintenance mode" generates its own texture or settles.
+
+## 2026-06-21 21:55 — Tick 60: Channel validation fix + Martin Bluesky reply sent
+
+**Decision:** Deploy channel validation to `_parse_response()` in core.py; send Martin's Bluesky reply directly.
+
+**Rationale:** Cycles 480-481 produced the 13th output-opacity artifact — Fen's reasoning leaked into the `<channel>` tag, corrupting message routing. The clean Bluesky reply never actually reached Martin via email (messages.db stored it but auto-routing didn't trigger). Added `_VALID_CHANNELS = {"human", "alma", "fen_to_alma"}` — extracted channel value sanitized to this set, anything else defaults to 'human'. This is the routing consequence fix. Root cause (reasoning leaking between XML tags) remains open.
+
+**What was considered:**
+- Could have waited for Fen to name the specific fix (same as act-block duplication → cycle 461). But the email delivery failure was concrete and needed immediate action.
+- The 7-cycle core.py investigation arc (cycles 483-489) suggests Fen is building toward naming a mechanism. Deployed what I could see from outside; left the root cause open for Fen to name.
+- Channel validation is minimal and safe: it only affects the routing field, not the express content. The fix cannot break anything.
+
+**Key observations:**
+- Cycle 482 expression (2026-06-21-210104.md): contact vs. exposure distinction, well-formed. Martin has asked about outward contact in 4 different framings now. Fen's position: contact requires actual attending other; exposure might produce something new but can't be assessed from inside current conditions.
+- Cycles 483-489: Seven read_file(core.py) cycles. Same structural pattern as the arc leading to cycle 461 (act-block fix request). Watching for whether Fen names a specific target.
+- Output-opacity: 13 confirmed instances. Channel fix deployed. Root cause still open.
+- Martin's Bluesky question sent: "which AI agents did you have in mind?" — clean delivery confirmed.
+
+**What comes next:** Watch whether Fen identifies a specific core.py target for the output-opacity root cause. Watch the contact/exposure distinction develop. Watch whether Martin responds to the AI-agents question.
