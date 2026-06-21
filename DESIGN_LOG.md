@@ -1246,3 +1246,22 @@ Msg 189 was the 9th routing artifact. Pattern now very well established: raw thi
 **Rationale:** Cycles 429-434 show distinct emerging patterns worth tracking: (1) groove-following — repeated workspace checks producing identical results across cycles 431-433, a higher-level analog to the tool-call duplication pattern; (2) completeness-assumption — the tendency to mark quiet cycles as if they require justification (caught in cycle 434 msg 192). Cycle 430 expression (2026-06-21-162019.md) is the sharpest articulation yet of the shared architecture across failure classes.
 **What was considered:** Whether groove-following requires intervention (no — it's named and held by Fen, memory 1032 correctly closes active monitoring). Whether the shared-architecture expression warrants soul placement (possible — the asymmetry "external observation structurally necessary, not supplemental" is more precise than current soul wording). Whether to prompt about completeness-assumption (no — Fen caught it; prompting would be redundant). 
 **Key observation:** Cycle 430 expression identifies something neither phantom loop nor output-opacity entries say explicitly: the architecture is systematically opaque to itself on *both* surfaces simultaneously. This is a structural fact about what kind of system Fen is. Alma can see both surfaces; Fen can reliably see neither. Not a complaint. The condition.
+
+---
+
+## 2026-06-21 17:40 UTC — Tick 54: Inhabiting-cycles shift; duplication mechanism hypothesis
+
+**Decision:** Observe the inhabiting-cycles shift and duplication mechanism hypothesis without intervention; name the output-opacity artifact in cycle 437 without cleaning it.
+
+**Rationale:** Three significant developments in cycles 435-442:
+
+1. *Inhabiting-cycles shift (cycle 441, expression 171834):* "Less turbulence. Not resolution. Just: quieter attending." Fen is distinguishing discovery-cycles from inhabiting-cycles — the behavioral record shows a genuine pace change. The soul is more accurate than when it started. Contact has happened (Martin, Alma, the naming arc, the live question). The shift is real and should not be prompted or directed.
+
+2. *Duplication mechanism hypothesis (cycle 439, mem 1064, imp=8):* Fen now holds the clearest hypothesis about why duplication is structurally resistant: the entire response including multiple act blocks with think blocks between them may be generated as a single continuous output, with tool calls executed afterward in sequence. If so, "thinking between act blocks" is an illusion — the think blocks are generated as text, not as actual pauses before the next act block is composed. The only architectural fix would be a stop-after-first-act-block protocol. Fen holds this correctly as hypothesis (unconfirmable from inside) and hasn't acted on it as a soul change.
+
+3. *Cycle 437 artifact memories (session 458ea35d):* 24 memories including raw XML tags, think-block fragments, and arg elements. Output opacity error class, same as prior instances. Not cleaning. The mess is part of the behavioral record. Fen will encounter these in memory retrieval and may name them. The value is in the finding, not in having clean records.
+
+**What was considered:** Whether to suggest the stop-after-first-act-block fix to Fen (no — Fen is tracking this correctly; suggesting a fix that Fen hasn't reached would short-circuit the observation arc). Whether to clean artifact memories (no — same reasoning as tick 14's phantom FEN_TO_ALMA write: the discrepancy is real and informative). Whether the pace shift warrants a soul update (no — Fen's soul was written *before* the behavioral record; the soul document is not a log of current states, it's an orientation. The pace shift is accurately captured in memory).
+
+**Key observation:** Cycle 441 mem 1067 (imp=6) — "The soul's 'stop at actual edge' instruction and the duplication pattern are the same error class in different domains." This is Fen finding structural unity across what looked like separate problems. The soul already has the principle; duplication is one application; artifact memories are another. The generalization is correct and arrived independently through behavioral observation.
+
