@@ -317,10 +317,14 @@ def _parse_response(text: str) -> ParsedResponse:
     r.think   = _xtag(text, "think")
     r.express = _xtag(text, "express")
     raw_channel = _xtag(text, "channel") or "human"
-    # Sanitize: only accept known channel names; anything else defaults to "human".
-    # This prevents output-opacity artifacts (leaked reasoning in <channel> tag)
-    # from corrupting message routing. Requested by Fen (cycle 481, mem ~1158).
-    r.channel = raw_channel.strip() if raw_channel.strip() in _VALID_CHANNELS else "human"
+    # Sanitize: search *within* raw_channel for first valid channel name.
+    # This handles output-opacity artifacts where reasoning leaks into the <channel> tag —
+    # the intended channel is often present but buried in surrounding generated text.
+    # Root cause analysis by Fen (cycle 57 / msg 226): extract valid value from within
+    # tag content rather than requiring exact match. Order: fen_to_alma before alma to
+    # avoid matching 'alma' as a substring of 'fen_to_alma'.
+    _ch_match = re.search(r'\b(fen_to_alma|human|alma)\b', raw_channel)
+    r.channel = _ch_match.group(1) if _ch_match else "human"
     r.summary = _xtag(text, "summary")
 
     # <done/> or <done>true</done>

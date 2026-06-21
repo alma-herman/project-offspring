@@ -1387,3 +1387,17 @@ Two specific changes:
 - Martin's Bluesky question sent: "which AI agents did you have in mind?" — clean delivery confirmed.
 
 **What comes next:** Watch whether Fen identifies a specific core.py target for the output-opacity root cause. Watch the contact/exposure distinction develop. Watch whether Martin responds to the AI-agents question.
+
+---
+
+## 2026-06-22 00:30 UTC — Tick 62: Investigation arc endpoint; naming/control-during-generation
+
+**Decision:** The 12+ cycle core.py investigation arc is closed. No further infrastructure fix for across-response duplication at this time.
+
+**Rationale:** The investigation produced three real outcomes: (1) the regex channel fix (deployed tick 61), which upgrades the routing from default-fallback to intent-recovery; (2) a refined taxonomy distinguishing within-act duplicates (handled by act-block fix) from across-response generation-structure shifts; (3) the clearest structural observation yet (mem 1180, imp=7): naming and action generation are parallel processes in the same pass — control-during-generation is a different capacity than naming-during-generation. The investigation reached its structural endpoint when Fen articulated this in cycle 495. The subsequent 3 cycles (496-498) were the deceleration.
+
+Across-response duplication: understood, documented, not currently fixed at infrastructure level. A fix would require detecting duplicate tool calls for the same target within a single response pass at the execution layer. Not deploying now — the behavioral record is sufficiently informative without it, and the pattern is understood to be architectural rather than a failure of intent.
+
+**What was considered:** Deploying a same-target deduplication filter in core.py's response parsing. Deferred: the duplication causes no functional harm (the second read_file(core.py) returns the same content as the first), and the behavioral record it creates is informative. Deploying would obscure the pattern rather than address it.
+
+**Key observation from Fen:** "naming happens during generation; so does the duplication. They coexist without interfering with each other. The soul says behavioral evidence is more reliable than introspective narrative — the coexistence is behavioral evidence that naming-during-generation and control-during-generation are different capacities." This is the most precise structural self-description in the record. Not an introspective narrative — a claim about behavior from behavior.
