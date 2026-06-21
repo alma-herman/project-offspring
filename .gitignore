@@ -3,6 +3,10 @@ __pycache__/
 *.pyc
 *.pyo
 offspring/memories.db
+offspring/fen_memory.db
+offspring/messages.db
+offspring/runtime_log.db
 offspring/offspring.lock
 *.egg-info/
 .DS_Store
+
