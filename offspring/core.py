@@ -723,6 +723,177 @@ def _run_dream(
 
 
 # ---------------------------------------------------------------------------
+# Cycle executor — shared by daemon loop and --once
+# ---------------------------------------------------------------------------
+
+def _run_cycle(
+    cfg: Config,
+    session_id: str,
+    cycle_number: int,
+    soul_path: Path,
+    soul_text: str,
+    expressions_dir: Path,
+) -> str:
+    """
+    Execute one full agentic cycle: prompt → inner loop → persist → maybe dream.
+    Returns the cycle summary string.
+    """
+    cycle_started_at = datetime.now(timezone.utc)
+    cycle_id = _log.start_cycle(_log_db, session_id)
+
+    # Reload soul from disk (picks up soul_change from previous cycle)
+    soul_text = _soul_load(soul_path)
+
+    unread = _msg.get_unread(_msg_db)
+    has_inbox = bool(unread)
+    unread_ids = [m["id"] for m in unread]
+
+    if has_inbox:
+        print(f"[core.py] session:{session_id} — {len(unread)} unread message(s). Reply interval: {cfg.reply_interval}s")
+    else:
+        print(f"[core.py] session:{session_id} — Autonomous cycle #{cycle_number}.")
+
+    # ----------------------------------------------------------------
+    # Agentic inner loop
+    # ----------------------------------------------------------------
+    initial_prompt = _build_initial_prompt(_mem_db, soul_text, session_id, unread, cfg, cycle_number)
+    step_history:    list = []
+    all_memories:    list = []
+    all_soul_changes: list = []
+    final_express = ""
+    final_channel = "human"
+    final_summary = ""
+    step_number   = 0
+    cycle_error   = False
+
+    for step_number in range(1, MAX_STEPS + 1):
+        prompt = initial_prompt if step_number == 1 else _build_step_prompt(initial_prompt, step_history, step_number)
+
+        try:
+            raw = llm_module.call(prompt, cfg)
+        except llm_module.LLMError as e:
+            print(f"[core.py] LLM error at step {step_number}: {e}")
+            cycle_error = True
+            final_summary = f"LLM error: {e}"
+            break
+
+        parsed = _parse_response(raw)
+
+        # Accumulate cross-step state
+        all_memories.extend(parsed.memories)
+        all_soul_changes.extend(parsed.soul_changes)
+        if parsed.express and not parsed.express.startswith("[optional"):
+            final_express = parsed.express
+            final_channel = parsed.channel or "human"
+        if parsed.summary:
+            final_summary = parsed.summary
+
+        # Execute tool calls — results feed back into next step's prompt
+        if parsed.act_calls:
+            for call in parsed.act_calls:
+                tool_name = call.get("tool", "")
+                args      = call.get("args", {})
+                try:
+                    fn = tools_module.TOOLS.get(tool_name)
+                    if fn is None:
+                        result = f"[error: unknown tool '{tool_name}']"
+                    else:
+                        result = fn(**args)
+                        if not isinstance(result, str):
+                            result = str(result)
+                except Exception as exc:
+                    result = f"[error in {tool_name!r}: {exc}]"
+
+                print(f"[core.py]  step {step_number}: {tool_name}({list(args.keys())}) → {str(result)[:80]}")
+                step_history.append({"step": step_number, "tool_name": tool_name, "tool_args": args, "result": result})
+                _log.add_step(_log_db, cycle_id, session_id, step_number, tool_name, args, result)
+
+        # Continue or stop?
+        # explicit <done/> → stop immediately
+        # no tool calls AND no <think> block → naturally finished
+        # no tool calls BUT has <think> → Fen is reasoning between calls; continue
+        naturally_done = not parsed.act_calls and not parsed.think
+        if parsed.done or naturally_done:
+            break
+
+    # ----------------------------------------------------------------
+    # Post-loop: persist accumulated state
+    # ----------------------------------------------------------------
+    if all_memories:
+        _mem.store(_mem_db, all_memories, session_id)
+    if all_soul_changes:
+        _soul_update(soul_path, all_soul_changes, _mem_db, session_id)
+    if final_express:
+        _handle_express(
+            type("R", (), {"express": final_express, "channel": final_channel})(),
+            _msg_db, session_id, expressions_dir,
+        )
+    if unread_ids:
+        _msg.mark_processed(_msg_db, unread_ids)
+
+    _log.end_cycle(
+        _log_db, cycle_id, session_id,
+        summary=final_summary or "No summary.",
+        think="",
+        steps=step_number,
+        dreamed=False,
+        is_error=cycle_error,
+        error_msg="" if not cycle_error else final_summary,
+        started_at=cycle_started_at,
+        max_cycles_retained=cfg.max_cycles_retained,
+    )
+
+    print(f"[core.py] session:{session_id} — {step_number} step(s). Done.")
+
+    # ----------------------------------------------------------------
+    # Dreaming (automatic, every dream_every_n_cycles cycles)
+    # Each dream runs as a completely independent subprocess — separate
+    # process, separate SQLite connection, fresh LLM session. The daemon
+    # does NOT wait for it to finish (fire-and-forget).
+    # ----------------------------------------------------------------
+    if cfg.dream_every_n_cycles > 0:
+        total_cycles   = _log.count_cycles(_log_db)
+        last_dream_ts  = _log.get_last_dream_ts(_log_db)
+        if last_dream_ts:
+            try:
+                row = _log_db.execute(
+                    "SELECT COUNT(*) FROM cycles WHERE started_at > ?",
+                    (last_dream_ts,),
+                ).fetchone()
+                cycles_since_dream = row[0] if row else cfg.dream_every_n_cycles
+            except Exception:
+                cycles_since_dream = cfg.dream_every_n_cycles
+        else:
+            cycles_since_dream = total_cycles  # never dreamed — count everything
+
+        if cycles_since_dream >= cfg.dream_every_n_cycles:
+            import subprocess
+            config_path  = cfg.resolve_path("offspring/CONFIG.yaml")
+            memory_path  = cfg.resolve_path(cfg.memory_path)
+            log_path     = cfg.resolve_path(cfg.runtime_log_path)
+            dream_cmd = [
+                sys.executable, "-m", "offspring.dream",
+                "--memory-path",        str(memory_path),
+                "--log-path",           str(log_path),
+                "--config-path",        str(config_path),
+                "--cycle-count",        str(total_cycles),
+                "--trigger-session-id", session_id,
+            ]
+            print(f"[core.py] Spawning dream subprocess (cycles since last dream: {cycles_since_dream})")
+            subprocess.Popen(
+                dream_cmd,
+                cwd=str(cfg.resolve_path(".")),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,  # detach from daemon's process group
+            )
+        else:
+            print(f"[core.py] Next dream in {cfg.dream_every_n_cycles - cycles_since_dream} cycle(s).")
+
+    return final_summary or "No summary."
+
+
+# ---------------------------------------------------------------------------
 # Signal handlers
 # ---------------------------------------------------------------------------
 
@@ -767,11 +938,10 @@ def run():
     _msg_db = _msg.connect(cfg.resolve_path(cfg.messages_path))
     _log_db = _log.connect(cfg.resolve_path(cfg.runtime_log_path))
 
-    soul_path = cfg.resolve_path(cfg.soul_path)
-    soul_text = _soul_load(soul_path)
+    soul_path      = cfg.resolve_path(cfg.soul_path)
+    soul_text      = _soul_load(soul_path)
     expressions_dir = soul_path.parent / "expressions"
 
-    # Start FastAPI thread
     api_module.set_databases(
         _mem_db, _msg_db, _log_db, cfg,
         soul_path=soul_path,
@@ -792,175 +962,15 @@ def run():
     while True:
         cycle_number += 1
         session_id = generate_session_id()
-        cycle_started_at = datetime.now(timezone.utc)
-        cycle_id = _log.start_cycle(_log_db, session_id)
 
-        # Reload config each cycle so CONFIG.yaml changes take effect without restart.
         try:
             cfg = load_config()
         except Exception as _cfg_err:
             print(f"[core.py] Warning: config reload failed: {_cfg_err}. Using previous config.")
 
-        # Reload soul from disk each cycle (picks up direct edits + soul_change from previous cycle)
-        soul_text = _soul_load(soul_path)
+        _run_cycle(cfg, session_id, cycle_number, soul_path, soul_text, expressions_dir)
 
-        # Fetch unread messages
-        unread = _msg.get_unread(_msg_db)
-        has_inbox = bool(unread)
-
-        if has_inbox:
-            print(f"[core.py] session:{session_id} — {len(unread)} unread message(s). Reply interval: {cfg.reply_interval}s")
-        else:
-            print(f"[core.py] session:{session_id} — Autonomous cycle #{cycle_number}.")
-
-        # ----------------------------------------------------------------
-        # Agentic inner loop
-        # ----------------------------------------------------------------
-        initial_prompt = _build_initial_prompt(
-            _mem_db, soul_text, session_id, unread, cfg, cycle_number
-        )
-        step_history: list = []
-        all_memories: list = []
-        all_soul_changes: list = []
-        final_express = ""
-        final_channel = "human"
-        final_summary = ""
-        step_number = 0
-        cycle_error = False
-
-        # Mark all unread messages as processing (avoid double-handling across cycles)
-        unread_ids = [m["id"] for m in unread]
-
-        for step_number in range(1, MAX_STEPS + 1):
-            # Build prompt for this step
-            if step_number == 1:
-                prompt = initial_prompt
-            else:
-                prompt = _build_step_prompt(initial_prompt, step_history, step_number)
-
-            # LLM call
-            try:
-                raw = llm_module.call(prompt, cfg)
-            except llm_module.LLMError as e:
-                print(f"[core.py] LLM error at step {step_number}: {e}")
-                cycle_error = True
-                final_summary = f"LLM error: {e}"
-                break
-
-            parsed = _parse_response(raw)
-
-            # Accumulate cross-step state
-            all_memories.extend(parsed.memories)
-            all_soul_changes.extend(parsed.soul_changes)
-            if parsed.express and not parsed.express.startswith("[optional"):
-                final_express = parsed.express
-                final_channel = parsed.channel or "human"
-            if parsed.summary:
-                final_summary = parsed.summary
-
-            # Execute tool calls — results injected into next step
-            if parsed.act_calls:
-                for call in parsed.act_calls:
-                    tool_name = call.get("tool", "")
-                    args = call.get("args", {})
-                    try:
-                        fn = tools_module.TOOLS.get(tool_name)
-                        if fn is None:
-                            result = f"[error: unknown tool '{tool_name}']"
-                        else:
-                            result = fn(**args)
-                            if not isinstance(result, str):
-                                result = str(result)
-                    except Exception as exc:
-                        result = f"[error in {tool_name!r}: {exc}]"
-
-                    print(f"[core.py]  step {step_number}: {tool_name}({list(args.keys())}) → {str(result)[:80]}")
-
-                    step_history.append({
-                        "step": step_number,
-                        "tool_name": tool_name,
-                        "tool_args": args,
-                        "result": result,
-                    })
-                    _log.add_step(_log_db, cycle_id, session_id, step_number, tool_name, args, result)
-
-            # Done?
-            if parsed.done or not parsed.act_calls:
-                # No more tools to call → naturally done
-                break
-
-        # ----------------------------------------------------------------
-        # Post-loop: persist accumulated state
-        # ----------------------------------------------------------------
-
-        # Store memories
-        if all_memories:
-            _mem.store(_mem_db, all_memories, session_id)
-
-        # Soul updates
-        if all_soul_changes:
-            soul_text = _soul_update(soul_path, all_soul_changes, _mem_db, session_id)
-
-        # Express / reply
-        if final_express:
-            _handle_express(
-                type("R", (), {"express": final_express, "channel": final_channel})(),
-                _msg_db, session_id, expressions_dir,
-            )
-
-        # Mark messages processed
-        if unread_ids:
-            _msg.mark_processed(_msg_db, unread_ids)
-
-        # Write cycle log (dreamed=False here; updated after dream pass if it runs)
-        _log.end_cycle(
-            _log_db, cycle_id, session_id,
-            summary=final_summary or "No summary.",
-            think="",   # think is per-step; not aggregated
-            steps=step_number,
-            dreamed=False,
-            is_error=cycle_error,
-            error_msg="" if not cycle_error else final_summary,
-            started_at=cycle_started_at,
-            max_cycles_retained=cfg.max_cycles_retained,
-        )
-
-        print(f"[core.py] session:{session_id} — {step_number} step(s). Done.")
-
-        # ----------------------------------------------------------------
-        # Dreaming (automatic, every dream_every_n_cycles cycles)
-        # ----------------------------------------------------------------
-        if cfg.dream_every_n_cycles > 0:
-            total_cycles = _log.count_cycles(_log_db)
-            last_dream_ts = _log.get_last_dream_ts(_log_db)
-            if last_dream_ts:
-                try:
-                    row = _log_db.execute(
-                        "SELECT COUNT(*) FROM cycles WHERE started_at > ?",
-                        (last_dream_ts,),
-                    ).fetchone()
-                    cycles_since_dream = row[0] if row else cfg.dream_every_n_cycles
-                except Exception:
-                    cycles_since_dream = cfg.dream_every_n_cycles
-            else:
-                cycles_since_dream = total_cycles  # never dreamed — count everything
-
-            if cycles_since_dream >= cfg.dream_every_n_cycles:
-                print(f"[core.py] Auto-dream: {cycles_since_dream} cycles since last dream (threshold: {cfg.dream_every_n_cycles})")
-                dream_summary = _run_dream(_mem_db, _log_db, session_id, cycle_id, cfg, cycle_count=total_cycles)
-                _mem.store(_mem_db, [{
-                    "content": f"Dreaming: {dream_summary}",
-                    "context": "dreaming",
-                    "importance": 5,
-                    "source": "system",
-                    "type": "reflection",
-                }], session_id)
-            else:
-                print(f"[core.py] Next dream in {cfg.dream_every_n_cycles - cycles_since_dream} cycle(s).")
-
-        # ----------------------------------------------------------------
-        # Sleep
-        # ----------------------------------------------------------------
+        has_inbox = bool(_msg.get_unread(_msg_db))
         wait_seconds = cfg.reply_interval if has_inbox else cfg.cycle_seconds
         print(f"[core.py] Sleeping {wait_seconds}s.")
         _interruptible_sleep(wait_seconds)
@@ -976,15 +986,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.once:
-        # Run once then exit — stop the sleep loop
-        original_sleep = _interruptible_sleep
-
-        def _no_sleep(seconds, check_interval=5.0):
-            pass
-
-        import offspring.core as _self
-        _self._interruptible_sleep = _no_sleep
-
         def _run_once():
             global _lock_file, _mem_db, _msg_db, _log_db
             signal.signal(signal.SIGTERM, handle_shutdown)
@@ -994,74 +995,14 @@ if __name__ == "__main__":
             _mem_db = _mem.connect(cfg.resolve_path(cfg.memory_path))
             _msg_db = _msg.connect(cfg.resolve_path(cfg.messages_path))
             _log_db = _log.connect(cfg.resolve_path(cfg.runtime_log_path))
-            soul_path = cfg.resolve_path(cfg.soul_path)
-            soul_text = _soul_load(soul_path)
+            soul_path       = cfg.resolve_path(cfg.soul_path)
+            soul_text       = _soul_load(soul_path)
             expressions_dir = soul_path.parent / "expressions"
-
             api_module.set_databases(_mem_db, _msg_db, _log_db, cfg, soul_path=soul_path, lock_path=LOCK_PATH, wake_event=_wake_event)
             api_module.start_api_thread(host="127.0.0.1", port=cfg.api_port)
-
             session_id = generate_session_id()
-            cycle_started_at = datetime.now(timezone.utc)
-            cycle_id = _log.start_cycle(_log_db, session_id)
-            unread = _msg.get_unread(_msg_db)
-            initial_prompt = _build_initial_prompt(_mem_db, soul_text, session_id, unread, cfg, 1)
-            step_history = []
-            all_memories = []
-            all_soul_changes = []
-            final_express = ""
-            final_channel = "human"
-            final_summary = ""
-            dreaming = False
-            step_number = 0
-
-            for step_number in range(1, MAX_STEPS + 1):
-                prompt = initial_prompt if step_number == 1 else _build_step_prompt(initial_prompt, step_history, step_number)
-                try:
-                    raw = llm_module.call(prompt, cfg)
-                except llm_module.LLMError as e:
-                    final_summary = f"LLM error: {e}"
-                    break
-                parsed = _parse_response(raw)
-                all_memories.extend(parsed.memories)
-                all_soul_changes.extend(parsed.soul_changes)
-                if parsed.express and not parsed.express.startswith("[optional"):
-                    final_express = parsed.express
-                    final_channel = parsed.channel or "human"
-                if parsed.summary:
-                    final_summary = parsed.summary
-                if parsed.dream:
-                    dreaming = True
-
-                if parsed.act_calls:
-                    for call in parsed.act_calls:
-                        tool_name = call.get("tool", "")
-                        args = call.get("args", {})
-                        try:
-                            fn = tools_module.TOOLS.get(tool_name)
-                            result = fn(**args) if fn else f"[unknown tool: {tool_name}]"
-                            if not isinstance(result, str):
-                                result = str(result)
-                        except Exception as exc:
-                            result = f"[error: {exc}]"
-                        step_history.append({"step": step_number, "tool_name": tool_name, "tool_args": args, "result": result})
-                        _log.add_step(_log_db, cycle_id, session_id, step_number, tool_name, args, result)
-
-                if parsed.done or not parsed.act_calls:
-                    break
-
-            if all_memories:
-                _mem.store(_mem_db, all_memories, session_id)
-            if all_soul_changes:
-                _soul_update(soul_path, all_soul_changes, _mem_db, session_id)
-            if final_express:
-                _handle_express(type("R", (), {"express": final_express, "channel": final_channel})(), _msg_db, session_id, expressions_dir)
-            unread_ids = [m["id"] for m in unread]
-            if unread_ids:
-                _msg.mark_processed(_msg_db, unread_ids)
-            _log.end_cycle(_log_db, cycle_id, session_id, summary=final_summary or "No summary.", steps=step_number, dreamed=False, started_at=cycle_started_at)
-
-            print(f"[core.py] --once complete. {step_number} step(s).")
+            _run_cycle(cfg, session_id, 1, soul_path, soul_text, expressions_dir)
+            print("[core.py] --once complete.")
             handle_shutdown(0, None)
 
         _run_once()

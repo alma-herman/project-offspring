@@ -49,6 +49,17 @@ CREATE TABLE IF NOT EXISTS cycle_steps (
 
 CREATE INDEX IF NOT EXISTS idx_cycle_started  ON cycles(started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_step_cycle     ON cycle_steps(cycle_id);
+
+CREATE TABLE IF NOT EXISTS dream_log (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id   TEXT NOT NULL,
+    cycle_count  INTEGER DEFAULT 0,
+    summary      TEXT DEFAULT '',
+    created_at   DATETIME DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_dream_created ON dream_log(created_at DESC);
+
 PRAGMA foreign_keys = ON;
 """
 
@@ -252,10 +263,17 @@ def get_steps(
 
 
 def get_last_dream_ts(db: Optional[sqlite3.Connection]) -> Optional[str]:
-    """Return the started_at timestamp of the most recent cycle where dreamed=1."""
+    """Return the created_at timestamp of the most recent completed dream (from dream_log).
+    Falls back to checking cycles.dreamed=1 for backward compatibility."""
     if db is None:
         return None
     try:
+        row = db.execute(
+            "SELECT created_at FROM dream_log ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+        if row:
+            return row[0]
+        # Backward compat: pre-dream_log runs stored dreamed flag on cycles
         row = db.execute(
             "SELECT started_at FROM cycles WHERE dreamed=1 ORDER BY started_at DESC LIMIT 1"
         ).fetchone()
