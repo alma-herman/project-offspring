@@ -44,29 +44,45 @@ CREATE TABLE IF NOT EXISTS memories (
     session_id  TEXT DEFAULT '',
     importance  INTEGER DEFAULT 5,
     tags        TEXT DEFAULT '',
-    source      TEXT DEFAULT 'session'
+    source      TEXT DEFAULT 'session',
+    type        TEXT DEFAULT 'observation'
 )
 """
 
-_DDL_IDX_CREATED = "CREATE INDEX IF NOT EXISTS idx_created ON memories(created_at DESC)"
+_DDL_IDX_CREATED    = "CREATE INDEX IF NOT EXISTS idx_created    ON memories(created_at DESC)"
 _DDL_IDX_IMPORTANCE = "CREATE INDEX IF NOT EXISTS idx_importance ON memories(importance DESC)"
+_DDL_IDX_TYPE       = "CREATE INDEX IF NOT EXISTS idx_type       ON memories(type)"
+
+# Migration: add type column if it doesn't exist yet (for existing DBs)
+_DDL_ADD_TYPE_COL = "ALTER TABLE memories ADD COLUMN type TEXT DEFAULT 'observation'"
+
+# Knowledge types (OKF-inspired, adapted for episodic agent memory)
+MEMORY_TYPES = {
+    "observation":  "Something noticed or experienced during a cycle — transient, low curation",
+    "fact":         "A stable, reusable piece of knowledge — high value, well-established",
+    "decision":     "A choice made and its rationale — durable, explains orientation",
+    "reflection":   "A self-assessment, pattern, or lesson — curated insight",
+    "tool_output":  "Raw output from a tool call — low importance, ephemeral",
+    "system":       "System events, startup/shutdown, config changes",
+}
 
 # Column ordering for SELECT * queries (explicit, not SELECT *)
-_COLUMNS = ("id", "content", "context", "importance", "tags", "session_id", "created_at", "source")
-_SELECT = "SELECT id, content, context, importance, tags, session_id, created_at, source FROM memories"
+_COLUMNS = ("id", "content", "context", "importance", "tags", "session_id", "created_at", "source", "type")
+_SELECT = "SELECT id, content, context, importance, tags, session_id, created_at, source, type FROM memories"
 
 
 def _row_to_dict(row: tuple) -> dict:
     """Convert a row tuple (matching _COLUMNS order) to a named dict."""
     return {
-        "id": row[0],
-        "content": row[1],
-        "context": row[2],
+        "id":         row[0],
+        "content":    row[1],
+        "context":    row[2],
         "importance": row[3],
-        "tags": row[4],
+        "tags":       row[4],
         "session_id": row[5],
         "created_at": row[6],
-        "source": row[7],
+        "source":     row[7],
+        "type":       row[8] if len(row) > 8 else "observation",
     }
 
 
@@ -78,7 +94,8 @@ def connect(db_path) -> Optional[sqlite3.Connection]:
     """
     Open (or create) the SQLite memory database at db_path.
 
-    Creates schema and indexes if the file is new. Returns an open
+    Creates schema and indexes if the file is new. Runs ALTER TABLE migration
+    to add the `type` column on existing databases. Returns an open
     sqlite3.Connection. Caller is responsible for closing it.
 
     Returns None on error (so callers can use `if db is not None` guards).
@@ -90,6 +107,12 @@ def connect(db_path) -> Optional[sqlite3.Connection]:
         db.execute(_DDL_CREATE)
         db.execute(_DDL_IDX_CREATED)
         db.execute(_DDL_IDX_IMPORTANCE)
+        # Migration: add type column if not present (existing DBs pre-type)
+        try:
+            db.execute(_DDL_ADD_TYPE_COL)
+        except sqlite3.OperationalError:
+            pass  # Column already exists — normal on second run
+        db.execute(_DDL_IDX_TYPE)
         db.commit()
         return db
     except Exception as e:
@@ -189,20 +212,26 @@ def store(db: Optional[sqlite3.Connection], memories: list[dict], session_id: st
     Store a list of memory dicts to the database.
 
     Accepts flexible dict shapes — only 'content' is required per entry.
-    Defaults: importance=5, source='session', context='', tags=''.
+    Defaults: importance=5, source='session', context='', tags='', type='observation'.
+
+    Valid types: observation, fact, decision, reflection, tool_output, system.
 
     No-op if db is None or memories is empty.
     """
     if db is None or not memories:
         return
+    valid_types = set(MEMORY_TYPES.keys())
     try:
         for m in memories:
             content = m.get("content", "")
             if not content:
                 continue  # Skip blank content silently
+            mem_type = m.get("type", "observation")
+            if mem_type not in valid_types:
+                mem_type = "observation"
             db.execute(
-                "INSERT INTO memories (content, context, session_id, importance, tags, source) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO memories (content, context, session_id, importance, tags, source, type) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
                     content,
                     m.get("context", ""),
@@ -210,6 +239,7 @@ def store(db: Optional[sqlite3.Connection], memories: list[dict], session_id: st
                     int(m.get("importance", 5)),
                     m.get("tags", ""),
                     m.get("source", "session"),
+                    mem_type,
                 )
             )
         db.commit()

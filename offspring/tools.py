@@ -223,75 +223,114 @@ def request_rollback(reason: str, target_commit: str = "") -> str:
     return f"[request_rollback] rollback request written to FEN_TO_ALMA.md at {ts}"
 
 
-def send_email(to: str, subject: str, body: str) -> str:
+def send_email(
+    to: str,
+    subject: str,
+    body: str,
+    html_body: str = "",
+    reply_to_message_id: str = "",
+) -> str:
     """
     Send an email from Fen's address to any recipient, via direct-to-MX SMTP.
 
     Fen's sending address: fen09123@web-library.net (mail.tm)
-    Note: mail.tm doesn't support outbound SMTP. This sends via direct MX connection
-    from the server's IP. May be greylisted on first send.
+    Delivers directly to the recipient's MX server — no relay required.
+    Handles greylisting automatically (451 → 6-minute retry).
 
     Args:
-        to:      Recipient email address (e.g. Martin's address)
-        subject: Email subject line
-        body:    Plain-text email body
+        to:                  Recipient email address.
+        subject:             Email subject line.
+        body:                Plain-text body.
+        html_body:           Optional HTML body (plain text used as fallback).
+        reply_to_message_id: Optional Message-ID of the email being replied to
+                             (sets In-Reply-To / References headers for threading).
 
-    Returns a success or error string.
+    Returns a JSON string: {"success": true/false, "to", "mx_host", "message_id"}
     """
     import smtplib
     import subprocess
+    import json as _json
+    import time as _time
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
     from email.utils import formatdate, make_msgid
 
+    # Load credentials from .env
+    env_path = PROJECT_ROOT / "offspring" / ".env"
+    env = {}
+    if env_path.exists():
+        for line in env_path.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                env[k.strip()] = v.strip()
+
+    sender = env.get("FEN_EMAIL_ADDRESS", "fen09123@web-library.net")
+    send_domain = sender.split("@")[-1]  # web-library.net
+
+    # Resolve MX for recipient domain
+    recipient_domain = to.split("@")[-1]
     try:
-        # Load credentials
-        env_path = PROJECT_ROOT / "offspring" / ".env"
-        env = {}
-        if env_path.exists():
-            for line in env_path.read_text().splitlines():
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    k, v = line.split("=", 1)
-                    env[k.strip()] = v.strip()
-
-        sender = env.get("FEN_EMAIL_ADDRESS", "fen09123@web-library.net")
-        recipient_domain = to.split("@")[1]
-
-        # Resolve MX
         dig = subprocess.run(
             ["dig", "+short", "MX", recipient_domain],
             capture_output=True, text=True, timeout=10
         )
-        mx_records = dig.stdout.strip().splitlines()
-        if not mx_records:
-            return f"[send_email] Error: no MX records found for {recipient_domain}"
-        sorted_mx = sorted(
-            (r.split() for r in mx_records if r.split()),
-            key=lambda x: int(x[0])
-        )
-        mx_host = sorted_mx[0][1].rstrip(".")
+        mx_lines = [l.strip() for l in dig.stdout.strip().splitlines() if l.strip()]
+        if not mx_lines:
+            return _json.dumps({"success": False, "error": f"No MX records for {recipient_domain}"})
+        mx_host = sorted(mx_lines, key=lambda x: int(x.split()[0]))[0].split()[-1].rstrip(".")
+    except Exception as e:
+        return _json.dumps({"success": False, "error": f"MX lookup failed: {e}"})
 
-        # Build message
-        msg = MIMEMultipart()
-        msg["From"] = f"Fen <{sender}>"
-        msg["To"] = to
-        msg["Date"] = formatdate(localtime=True)
-        msg["Message-ID"] = make_msgid()
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body, "plain"))
+    # Build message
+    msg = MIMEMultipart("alternative")
+    msg["From"]       = f"Fen <{sender}>"
+    msg["To"]         = to
+    msg["Subject"]    = subject
+    msg["Date"]       = formatdate(localtime=False)
+    msg_id            = make_msgid(domain=send_domain)
+    msg["Message-ID"] = msg_id
 
-        # Send
+    if reply_to_message_id:
+        msg["In-Reply-To"] = reply_to_message_id
+        msg["References"]  = reply_to_message_id
+
+    msg.attach(MIMEText(body, "plain"))
+    if html_body:
+        msg.attach(MIMEText(html_body, "html"))
+
+    def _attempt():
         s = smtplib.SMTP(mx_host, 25, timeout=20)
-        s.ehlo("web-library.net")
+        s.ehlo(send_domain)
         if s.has_extn("starttls"):
             s.starttls()
-            s.ehlo("web-library.net")
-        result = s.sendmail(sender, [to], msg.as_string())
+            s.ehlo(send_domain)
+        rejected = s.sendmail(sender, [to], msg.as_string())
         s.quit()
-        return f"[send_email] Sent to {to} via {mx_host}. Result: {result}"
+        return rejected
+
+    # First attempt; retry once on greylisting (451)
+    try:
+        rejected = _attempt()
+        return _json.dumps({
+            "success": True, "to": to, "subject": subject,
+            "mx_host": mx_host, "message_id": msg_id, "rejected": rejected,
+        })
+    except smtplib.SMTPDataError as e:
+        if e.smtp_code == 451:
+            _time.sleep(360)  # greylisting: wait 6 min and retry
+            try:
+                rejected = _attempt()
+                return _json.dumps({
+                    "success": True, "to": to, "subject": subject,
+                    "mx_host": mx_host, "message_id": msg_id, "rejected": rejected,
+                    "note": "delivered after greylisting retry",
+                })
+            except Exception as e2:
+                return _json.dumps({"success": False, "error": str(e2), "note": "failed after greylisting retry"})
+        return _json.dumps({"success": False, "error": str(e), "smtp_code": e.smtp_code})
     except Exception as e:
-        return f"[send_email] Error: {e}"
+        return _json.dumps({"success": False, "error": str(e)})
 
 
 def send_message(channel: str, content: str) -> str:
@@ -489,6 +528,81 @@ def read_email(message_id: str) -> str:
 # Tool registry
 # ---------------------------------------------------------------------------
 
+def browse_web(url, action="read", selector=None, fill=None, click=None, wait_ms=2000, timeout=20000) -> str:
+    """
+    Headless browser automation via Playwright/Chromium.
+
+    Args:
+        url      : Page URL to load.
+        action   : "read"   — return visible page text (default)
+                   "html"   — return raw page HTML
+                   "click"  — click an element (requires selector)
+                   "fill"   — fill a form field (requires selector + fill)
+                   "submit" — fill a field then press Enter (requires selector + fill)
+        selector : CSS selector (required for click / fill / submit).
+        fill     : Text to type into the selector element.
+        click    : CSS selector to click after filling (optional secondary click).
+        wait_ms  : Milliseconds to wait after navigation / action (default 2000).
+        timeout  : Navigation timeout in ms (default 20000).
+
+    Returns a string: page text, HTML, or action confirmation.
+    Chromium is launched with --no-sandbox (required for non-root server env).
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return "[browse_web] playwright not installed in venv"
+
+    args = ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True, args=args)
+            context = browser.new_context(
+                user_agent=(
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+                locale="en-US",
+            )
+            page = context.new_page()
+            page.goto(url, wait_until="commit", timeout=timeout)
+            page.wait_for_timeout(wait_ms)
+
+            if action == "html":
+                result = page.content()
+            elif action in ("fill", "submit"):
+                if not selector:
+                    return "[browse_web] fill/submit requires selector"
+                page.fill(selector, fill or "")
+                page.wait_for_timeout(500)
+                if action == "submit":
+                    page.keyboard.press("Enter")
+                    page.wait_for_timeout(wait_ms)
+                if click:
+                    page.click(click)
+                    page.wait_for_timeout(wait_ms)
+                result = f"filled '{selector}' with text ({len(fill or '')} chars)"
+                if action == "submit":
+                    result += ", pressed Enter"
+            elif action == "click":
+                if not selector:
+                    return "[browse_web] click requires selector"
+                page.click(selector)
+                page.wait_for_timeout(wait_ms)
+                result = f"clicked '{selector}'"
+            else:  # read (default)
+                # text_content works reliably; inner_text may return empty on some Playwright/Chromium combos
+                result = page.text_content("body") or page.evaluate("document.body.textContent") or ""
+
+            browser.close()
+            # Truncate to avoid overwhelming context
+            if len(result) > 8000:
+                result = result[:8000] + "\n…[truncated]"
+            return result
+    except Exception as e:
+        return f"[browse_web] error: {e}"
+
+
 TOOLS = {
     "read_file": read_file,
     "write_file": write_file,
@@ -503,6 +617,7 @@ TOOLS = {
     "bluesky_post": bluesky_post,
     "bluesky_timeline": bluesky_timeline,
     "check_email": check_email,
+    "browse_web": browse_web,
 }
 
 

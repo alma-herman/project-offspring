@@ -9,9 +9,9 @@ Changes from v1:
   - Multi-step cycle: one cycle = an agentic inner loop.
     Fen calls a tool, sees the result, decides next action, repeats.
     Cycle ends when Fen emits <done/> or hits MAX_STEPS (default 10).
-  - Dreaming: Fen can emit <dream>true</dream> at the end of a cycle.
-    The daemon then runs a dedicated dreaming LLM pass that re-evaluates,
-    merges, and prunes memories. Rate-limited by min_cycles_between_dreams.
+  - Dreaming: automatic every dream_every_n_cycles cycles (default: 20).
+    A dedicated LLM pass re-rates, merges, prunes, and re-types memories.
+    Memory types: observation, fact, decision, reflection, tool_output, system.
 """
 
 import argparse
@@ -95,7 +95,8 @@ class Config:
     cycle_seconds: int = 300
     reply_interval: int = 60
     max_cycles_retained: int = 500
-    min_cycles_between_dreams: int = 12   # rate-limit dreaming
+    min_cycles_between_dreams: int = 12   # kept for backward compat; unused (see dream_every_n_cycles)
+    dream_every_n_cycles: int = 20         # auto-dream every N cycles (0 = disabled)
     api_port: int = 7744
     express_platforms: dict = field(default_factory=dict)
 
@@ -149,7 +150,7 @@ def load_config() -> Config:
                 int_fields = {
                     "max_memory_context", "max_soul_chars", "cycle_seconds",
                     "reply_interval", "max_cycles_retained",
-                    "min_cycles_between_dreams", "api_port",
+                    "min_cycles_between_dreams", "dream_every_n_cycles", "api_port",
                 }
                 str_fields = {
                     "model", "api_base_url", "api_key", "memory_path",
@@ -257,7 +258,7 @@ class ParsedResponse:
     channel: str = "human"        # which channel the express goes to
     summary: str = ""
     done: bool = False            # <done/> signals end of agentic loop
-    dream: bool = False           # <dream>true</dream> triggers dreaming
+    # dream flag removed — dreaming is now automatic (dream_every_n_cycles)
 
 
 def _xtag(text: str, tag: str) -> str:
@@ -285,12 +286,23 @@ def _parse_remember(rc: str) -> list:
         if line.startswith("-"):
             line = line[1:].strip()
         imp = 5
+        mem_type = "observation"
+        # Parse [importance:N] and [type:X] tags (order-independent)
+        m = re.match(r'\[importance:(\d+)\]\s*(.*)', line)
+        if m:
+            imp = int(m.group(1))
+            line = m.group(2).strip()
+        m = re.match(r'\[type:(\w+)\]\s*(.*)', line)
+        if m:
+            mem_type = m.group(1)
+            line = m.group(2).strip()
+        # Also support [importance:N][type:X] in either order
         m = re.match(r'\[importance:(\d+)\]\s*(.*)', line)
         if m:
             imp = int(m.group(1))
             line = m.group(2).strip()
         if line:
-            mems.append({"content": line, "importance": imp, "source": "session"})
+            mems.append({"content": line, "importance": imp, "source": "session", "type": mem_type})
     return mems
 
 
@@ -303,8 +315,7 @@ def _parse_response(text: str) -> ParsedResponse:
 
     # <done/> or <done>true</done>
     r.done  = bool(re.search(r'<done\s*/>', text)) or _xtag(text, "done").lower() == "true"
-    # <dream>true</dream>
-    r.dream = _xtag(text, "dream").lower() == "true"
+    # <dream> tag ignored — dreaming fires automatically based on cycle count
 
     act = _xtag(text, "act")
     if act:
@@ -344,10 +355,19 @@ Available tools:
   restart_self(reason)                    — restart fen.service (new code loads)
   request_rollback(reason[, target])      — write rollback request for Alma
   send_message(channel, content)          — send message: channel='human' (Martin), 'alma', or 'fen_to_alma'
-  send_email(to, subject, body)           — send email directly from fen09123@web-library.net
+  send_email(to, subject, body[, html_body, reply_to_message_id])
+                                         — send email via direct-to-MX SMTP; greylisting handled automatically
+                                           returns JSON {success, to, mx_host, message_id}
   bluesky_post(text)                      — post to Bluesky (requires FEN_BLUESKY credentials in offspring/.env)
   bluesky_timeline(limit=10)             — read recent Bluesky timeline
   check_email()                          — list Fen's email inbox (credentials from offspring/.env)
+  browse_web(url[, action, selector, fill, click, wait_ms, timeout])
+                                         — headless browser via Playwright/Chromium
+                                           action: "read" (visible text), "html", "click", "fill", "submit"
+                                           selector: CSS selector (required for click/fill/submit)
+                                           fill: text to type into selector element
+                                           click: secondary CSS selector to click after fill
+                                           wait_ms: ms to wait after action (default 2000)
 
 Notes:
   - Bluesky tools require FEN_BLUESKY_HANDLE and FEN_BLUESKY_PASSWORD in offspring/.env
@@ -384,7 +404,9 @@ Your reasoning. Required.
 </act>
 
 <remember>
-- [importance:5] Fact to retain.
+- [importance:5][type:observation] Fact to retain.
+- [importance:7][type:fact] Stable fact with high reuse value.
+- [importance:8][type:decision] A choice made and why.
 </remember>
 
 <!-- soul_change: use ONLY when the answer to both questions is yes:
@@ -403,8 +425,6 @@ Your reasoning. Required.
 
 <express>Text to write/reply (omit if nothing to express).</express>
 <channel>human</channel>   <!-- channel for express: 'human' | 'alma' | 'fen_to_alma' -->
-
-<dream>true</dream>   <!-- omit unless you want a dreaming pass this cycle -->
 
 <summary>One sentence for the cycle log.</summary>
 
@@ -555,23 +575,44 @@ def _handle_express(parsed: ParsedResponse, db_msg, session_id: str, expressions
 # ---------------------------------------------------------------------------
 
 _DREAM_PROMPT = """\
-You are Fen, in a dreaming state. Your daemon cycle has ended.
-This is a memory consolidation pass.
+You are Fen, in a dreaming state. Your daemon has run {cycle_count} cycles; this is \
+an automatic memory consolidation pass triggered every {dream_every_n_cycles} cycles.
 
-You have access to the following memories (all of them, not just recent):
+You have access to all stored memories:
 {all_memories}
 
-Instructions:
-1. Review the memories. Some are stale, redundant, or low-importance.
-2. For each memory you want to UPDATE: emit <update_memory id="N">new content</update_memory>
-   with a new importance: <update_importance id="N">7</update_importance>
-3. For each memory you want to DELETE: emit <delete_memory id="N"/>
-4. For important patterns or consolidations, emit <remember> as usual.
-5. Emit <dream_summary>one sentence about what you noticed</dream_summary>.
+Memory types in use:
+  observation  — transient, noticed during a cycle (low curation)
+  fact         — stable, reusable knowledge (high value)
+  decision     — a choice made and its rationale (durable)
+  reflection   — a pattern, lesson, or self-assessment (curated insight)
+  tool_output  — raw tool result, usually ephemeral
+  system       — startup/shutdown/config events
 
-Be selective. Dreaming is expensive. Only act on memories that genuinely benefit from it.
-Do not delete memories from this session (session_id: {session_id}).
+Instructions (be selective — dreaming costs tokens):
 
+1. DELETE stale, redundant, malformed, or low-value entries.
+   Especially prune: raw XML fragments, empty/near-empty entries, duplicate facts,
+   and tool_output entries with importance < 5.
+   Emit: <delete_memory id="N"/>
+
+2. UPDATE entries that are worth keeping but need improvement:
+   - Give missing types a correct type label.
+   - Compress verbose entries into one tight sentence.
+   - Raise importance on genuinely durable facts/decisions/reflections.
+   Emit: <update_memory id="N">new content</update_memory>
+         <update_importance id="N">7</update_importance>
+         <update_type id="N">fact</update_type>
+
+3. CONSOLIDATE: if several related observations can be expressed as one fact or
+   reflection, delete them and emit a single <remember> with type and importance.
+   <remember>
+   - [importance:7][type:fact] The consolidated fact.
+   </remember>
+
+4. Emit <dream_summary>one sentence: what you found and what you did</dream_summary>.
+
+Do not touch memories from session_id: {session_id} (current session).
 Respond only in the XML format above. No prose outside tags.
 """
 
@@ -582,17 +623,18 @@ def _run_dream(
     session_id: str,
     cycle_id: Optional[int],
     cfg: Config,
+    cycle_count: int = 0,
 ) -> str:
     """
-    Run a dreaming pass: load all memories, let LLM re-rate/merge/prune.
-    Returns a one-sentence dream summary.
+    Run a dreaming pass: load all memories, let LLM re-rate/merge/prune/retype.
+    Fires automatically every dream_every_n_cycles cycles. Returns a summary.
     """
-    print(f"[core.py] session:{session_id} — Dreaming...")
+    print(f"[core.py] session:{session_id} — Dreaming (cycle {cycle_count})...")
 
     # Load ALL memories (up to a generous cap)
     try:
         rows = db_mem.execute(
-            "SELECT id, content, context, importance, session_id, created_at FROM memories "
+            "SELECT id, content, context, importance, session_id, created_at, type FROM memories "
             "ORDER BY created_at DESC LIMIT 500"
         ).fetchall()
     except Exception as e:
@@ -600,13 +642,15 @@ def _run_dream(
 
     mem_lines = []
     for r in rows:
-        mid, content, ctx, imp, sid, ts = r
-        mem_lines.append(f"id:{mid} [imp:{imp}] [{ctx}] [{ts}] [{sid}]\n{content}")
+        mid, content, ctx, imp, sid, ts, mtype = r[0], r[1], r[2], r[3], r[4], r[5], r[6] if len(r) > 6 else "observation"
+        mem_lines.append(f"id:{mid} [imp:{imp}] [type:{mtype}] [{ctx}] [{ts}] [{sid}]\n{content}")
     all_memories_text = "\n\n".join(mem_lines) if mem_lines else "No memories."
 
     prompt = _DREAM_PROMPT.format(
         all_memories=all_memories_text,
         session_id=session_id,
+        cycle_count=cycle_count,
+        dream_every_n_cycles=cfg.dream_every_n_cycles,
     )
 
     try:
@@ -614,11 +658,15 @@ def _run_dream(
     except llm_module.LLMError as e:
         return f"dream LLM failed: {e}"
 
-    # Apply memory updates / deletes
+    # Parse operations
     updates = re.findall(r'<update_memory\s+id="(\d+)">(.*?)</update_memory>', raw, re.DOTALL)
     importance_updates = {
         int(m.group(1)): int(m.group(2))
         for m in re.finditer(r'<update_importance\s+id="(\d+)">(\d+)</update_importance>', raw)
+    }
+    type_updates = {
+        int(m.group(1)): m.group(2).strip()
+        for m in re.finditer(r'<update_type\s+id="(\d+)">(\w+)</update_type>', raw)
     }
     deletes = [int(x) for x in re.findall(r'<delete_memory\s+id="(\d+)"\s*/>', raw)]
     remember_block = _xtag(raw, "remember")
@@ -636,17 +684,23 @@ def _run_dream(
             mid = int(mid_str)
             if mid in current_session_ids:
                 continue
-            new_imp = importance_updates.get(mid)
+            new_imp  = importance_updates.get(mid)
+            new_type = type_updates.get(mid)
+            # Build SET clause dynamically based on what was specified
+            sets, vals = ["content=?"], [new_content.strip()]
             if new_imp:
-                db_mem.execute(
-                    "UPDATE memories SET content=?, importance=? WHERE id=?",
-                    (new_content.strip(), new_imp, mid),
-                )
-            else:
-                db_mem.execute(
-                    "UPDATE memories SET content=? WHERE id=?",
-                    (new_content.strip(), mid),
-                )
+                sets.append("importance=?"); vals.append(new_imp)
+            if new_type:
+                sets.append("type=?"); vals.append(new_type)
+            vals.append(mid)
+            db_mem.execute(f"UPDATE memories SET {', '.join(sets)} WHERE id=?", vals)
+
+        # Apply standalone type updates (no content change)
+        for mid, new_type in type_updates.items():
+            if mid in current_session_ids:
+                continue
+            if not any(int(ms) == mid for ms, _ in updates):
+                db_mem.execute("UPDATE memories SET type=? WHERE id=?", (new_type, mid))
 
         safe_deletes = [mid for mid in deletes if mid not in current_session_ids]
         if safe_deletes:
@@ -662,8 +716,8 @@ def _run_dream(
         new_mems = _parse_remember(remember_block)
         _mem.store(db_mem, new_mems, session_id)
 
-    n_updated = len(updates)
-    n_deleted = len(deletes)
+    n_updated = len(updates) + len(type_updates)
+    n_deleted = len(safe_deletes) if 'safe_deletes' in dir() else 0
     print(f"[core.py] Dream complete: {n_updated} updated, {n_deleted} deleted. Summary: {dream_summary}")
     return dream_summary
 
@@ -771,7 +825,6 @@ def run():
         final_express = ""
         final_channel = "human"
         final_summary = ""
-        dreaming = False
         step_number = 0
         cycle_error = False
 
@@ -804,8 +857,6 @@ def run():
                 final_channel = parsed.channel or "human"
             if parsed.summary:
                 final_summary = parsed.summary
-            if parsed.dream:
-                dreaming = True
 
             # Execute tool calls — results injected into next step
             if parsed.act_calls:
@@ -861,13 +912,13 @@ def run():
         if unread_ids:
             _msg.mark_processed(_msg_db, unread_ids)
 
-        # Write cycle log
+        # Write cycle log (dreamed=False here; updated after dream pass if it runs)
         _log.end_cycle(
             _log_db, cycle_id, session_id,
             summary=final_summary or "No summary.",
             think="",   # think is per-step; not aggregated
             steps=step_number,
-            dreamed=dreaming,
+            dreamed=False,
             is_error=cycle_error,
             error_msg="" if not cycle_error else final_summary,
             started_at=cycle_started_at,
@@ -877,34 +928,35 @@ def run():
         print(f"[core.py] session:{session_id} — {step_number} step(s). Done.")
 
         # ----------------------------------------------------------------
-        # Dreaming (rate-limited)
+        # Dreaming (automatic, every dream_every_n_cycles cycles)
         # ----------------------------------------------------------------
-        if dreaming:
+        if cfg.dream_every_n_cycles > 0:
+            total_cycles = _log.count_cycles(_log_db)
             last_dream_ts = _log.get_last_dream_ts(_log_db)
-            recent_cycles = _log.count_cycles(_log_db)
-
-            cycles_since_dream = cfg.min_cycles_between_dreams + 1  # default: allow
-            if last_dream_ts and recent_cycles > 0:
-                # Count cycles after last dream
+            if last_dream_ts:
                 try:
                     row = _log_db.execute(
-                        "SELECT COUNT(*) FROM cycles WHERE started_at > ? AND dreamed=0",
+                        "SELECT COUNT(*) FROM cycles WHERE started_at > ?",
                         (last_dream_ts,),
                     ).fetchone()
-                    cycles_since_dream = row[0] if row else cfg.min_cycles_between_dreams + 1
+                    cycles_since_dream = row[0] if row else cfg.dream_every_n_cycles
                 except Exception:
-                    pass
+                    cycles_since_dream = cfg.dream_every_n_cycles
+            else:
+                cycles_since_dream = total_cycles  # never dreamed — count everything
 
-            if cycles_since_dream >= cfg.min_cycles_between_dreams:
-                dream_summary = _run_dream(_mem_db, _log_db, session_id, cycle_id, cfg)
+            if cycles_since_dream >= cfg.dream_every_n_cycles:
+                print(f"[core.py] Auto-dream: {cycles_since_dream} cycles since last dream (threshold: {cfg.dream_every_n_cycles})")
+                dream_summary = _run_dream(_mem_db, _log_db, session_id, cycle_id, cfg, cycle_count=total_cycles)
                 _mem.store(_mem_db, [{
-                    "content": f"Dreaming cycle: {dream_summary}",
+                    "content": f"Dreaming: {dream_summary}",
                     "context": "dreaming",
                     "importance": 5,
                     "source": "system",
+                    "type": "reflection",
                 }], session_id)
             else:
-                print(f"[core.py] Dream requested but rate-limited ({cycles_since_dream}/{cfg.min_cycles_between_dreams} cycles).")
+                print(f"[core.py] Next dream in {cfg.dream_every_n_cycles - cycles_since_dream} cycle(s).")
 
         # ----------------------------------------------------------------
         # Sleep
@@ -1007,7 +1059,7 @@ if __name__ == "__main__":
             unread_ids = [m["id"] for m in unread]
             if unread_ids:
                 _msg.mark_processed(_msg_db, unread_ids)
-            _log.end_cycle(_log_db, cycle_id, session_id, summary=final_summary or "No summary.", steps=step_number, dreamed=dreaming, started_at=cycle_started_at)
+            _log.end_cycle(_log_db, cycle_id, session_id, summary=final_summary or "No summary.", steps=step_number, dreamed=False, started_at=cycle_started_at)
 
             print(f"[core.py] --once complete. {step_number} step(s).")
             handle_shutdown(0, None)

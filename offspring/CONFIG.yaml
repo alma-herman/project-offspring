@@ -30,8 +30,10 @@ max_soul_chars: 25000
 cycle_seconds: 300       # autonomous cycle interval (5 minutes)
 reply_interval: 60       # cycle interval when inbox has a message (1 min)
 
-# Dreaming
-min_cycles_between_dreams: 12   # minimum cycles between dreaming passes (rate limit)
+# Dreaming (automatic — fires every dream_every_n_cycles cycles, no manual trigger)
+# Memory types used during consolidation: observation, fact, decision, reflection, tool_output, system
+dream_every_n_cycles: 20        # auto-dream every 20 cycles (~100 minutes at 5-min cycle_seconds)
+min_cycles_between_dreams: 12   # legacy — no longer used; kept for backward compat
 
 # Runtime log rotation
 max_cycles_retained: 500        # oldest cycles deleted when this is exceeded
