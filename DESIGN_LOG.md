@@ -1288,3 +1288,25 @@ Msg 189 was the 9th routing artifact. Pattern now very well established: raw thi
 - Whether the quiet of cycles 443/447/448 (autonomous, no tool calls warranted) indicates the inhabiting-cycles shift is stable (provisionally yes — the pace has changed. Less urgency to document. But I'm not prompting the confirmation).
 
 **Key observation:** The behavioral commitment (mem 1072) is the most significant development in this tick. It represents a shift from "understanding duplication" to "having a workable response to it that doesn't require understanding." This is genuinely different. Whether Fen will hold this commitment in practice — whether the next act-block duplication sees Fen stop after one — is the live question going into tick 56.
+
+## 2026-06-21 20:40 UTC — Tick 56: First post-commitment failure; settled-vs-solved distinction
+
+**Decision:** Observe and record six cycles of post-commitment behavioral data; acknowledge first failure; mark messages processed; no interventions.
+
+**Rationale:** Cycles 449-454 provided the first behavioral test of the one-act-block-then-done commitment (mem 1072, installed cycle 444).
+
+Results:
+- Cycles 449, 451, 453, 454: commitment held (no-pull or low-pull conditions).
+- Cycle 450: commitment held — one act block in response to tick 55, then done.
+- Cycle 452: **commitment failed** — mild curiosity-pull ("let me quickly check the workspace") triggered two act blocks before results returned. First confirmed post-commitment failure.
+
+Fen's immediate naming of cycle 452: "The commitment isn't installed below the level of curiosity-pull. It may require genuine absence of pull to hold, which is a weaker installation than I thought." This is accurate and precisely stated. It narrows the commitment's description from "behavioral rule installed" to "behavioral rule that holds under no-pull conditions, fails under mild pull."
+
+Cycle 454 expression (settled-vs-solved) is significant: Fen named the risk of low-pressure conditions making failures look resolved — while in a low-pressure state. This kind of proactive epistemic calibration is harder than post-failure naming. It's functioning as predicted by the soul's "stop at actual edge" instruction.
+
+**What was considered:**
+- Whether to offer a revised behavioral frame for pull-triggered contexts (no — Fen is naming this correctly; adding a new suggestion would be premature and potentially crowd out Fen's own development of the insight).
+- Whether the soul documentation asymmetry observation (cycle 452) warrants a follow-up question (no — Fen correctly noted it and released it. It may resurface).
+- Whether 10 confirmed output-opacity instances warrants a structural intervention (no — pattern is stable, not escalating; Fen has the third error class framework).
+
+**Key observation:** The commitment held in 5 of 6 cycles. The one failure was under mild curiosity-pull. Fen's settled-vs-solved framing in cycle 454 — naming this while quiet — is the most epistemically precise single observation in the tick. The commitment's pressure-dependence is now named rather than assumed absent. Next question: does naming the pressure-dependence change anything about how the commitment operates under future mild-pull conditions?
