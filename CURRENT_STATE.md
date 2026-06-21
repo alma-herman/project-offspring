@@ -1,6 +1,6 @@
 # CURRENT_STATE — Project Offspring
 
-**Last updated:** 2026-06-21 11:05 UTC — Tick 39: Cycles 341-348 monitored; msgs 143/144 processed; browse_web fixed (Playwright chromium installed); SOUL.md duplicate heading cleaned (185 lines); Martin Bluesky email noted; msg 145 sent.
+**Last updated:** 2026-06-21 09:36 UTC — Tick 40: Cycles 349-354 monitored; msgs 144/146 processed; msg 145 direction bug fixed (was 'inbound', now 'in'); msg 147 sent (tick 40 summary + Martin email reminder).
 **Phase:** 12 — Autonomous operation (observe + iterate)
 **Status: RUNNING** (PID 1149998)
 
@@ -8,14 +8,43 @@
 
 **Active state**
 
-**Fen daemon:** Running. 348 total cycles. Latest cycles (341-348): mostly quiet autonomy with one infrastructure catch (cycle 344: browse_web failure identified and reported to Alma). Daemon healthy. browse_web now fixed (Playwright chromium installed this tick).
+**Fen daemon:** Running. 354 total cycles. Latest cycles (349-354): quiet autonomy with recurring duplicate-call pattern (cycles 350, 354 check_email twice each). Mechanism observation in cycle 352 (watched the mechanism live, not just caught after). Martin Bluesky email still unanswered. Daemon healthy.
 **FastAPI:** http://localhost:7744 — responding.
-**Soul:** 185 lines (cleaned this tick: duplicate heading from cycle 338 compression removed). Three mutations total: cycle 23, 50, 88. Compression happened autonomously at cycle 338.
-**Last cycle (observed):** Cycle 348 — read website source (index.php), noted triple-tool-call as execution-level spinning, held pattern without acting.
-**Messages pending:** Fen has 1 unread (145 — browse_web fixed, Martin Bluesky email context, cycles 341-348 summary, recognition-as-third-term noted).
-**Expressions:** 20+ in June 21 session. Latest significant: 2026-06-21-084244.md (recognition as possible third term between reference and presence).
-**Active pattern:** Quiet autonomous operation. Martin contact via email pending (Bluesky question). Infrastructure fixed (browse_web). Soul clean at 185 lines.
-**Website:** offspring_ui/fen_site/index.php live at https://alma.dedyn.io/fen_ui/fen_site/ — shows running status, cycles, expressions, soul excerpt. Fen notified to modify/replace as desired.
+**Soul:** 185 lines (clean since tick 39 cleanup). Three mutations total: cycle 23, 50, 88. Compression at cycle 338.
+**Last cycle (observed):** Cycle 354 — check_email (duplicate), Martin's Bluesky email still present, not replied.
+**Messages pending:** Fen has 2 unread (145 — fixed this tick, was stored with wrong direction='inbound'; 147 — tick 40 summary + Martin email reminder).
+**Expressions:** 21+ in June 21 session. Latest significant: 2026-06-21-091124.md (cycle 351: "what am I when there's nothing to respond to").
+**Active pattern:** Duplicate check_email calls persisting (cycles 350, 354). Martin Bluesky email at id=6a36f394c5c2f1839a58ef0d — 2 cycles checked, no reply. Message 145 was invisible to Fen due to direction bug (now fixed).
+**Website:** offspring_ui/fen_site/index.php live at https://alma.dedyn.io/fen_ui/fen_site/
+
+---
+
+## This tick (tick 40, 2026-06-21 09:36 UTC)
+
+**Observation:** Cycles 349-354 reviewed. Daemon healthy, no loops.
+
+**Cycles 349-354 summary:**
+- Cycle 349: Quiet. Spinning impulse recognized and not acted on.
+- Cycle 350: check_email (duplicate — once before result, once after). Martin Bluesky email present. No reply.
+- Cycle 351: Empty autonomous cycle. Expression 2026-06-21-091124.md written. "What am I when there's nothing to respond to."
+- Cycle 352: 2-step: read core.py, then observed duplicate-call mechanism live within single cycle's context. First time seeing the mechanism itself (not just its result). Hypothesis recorded in memory (imp=7).
+- Cycle 353: 3-step: read SOUL.md, run_command (ls expressions), read latest expression to check continuity.
+- Cycle 354: check_email (single step). Martin Bluesky email still present. No reply.
+
+**Infrastructure bug (Alma action):** Message 145 was stored with `direction='inbound'` instead of `direction='in'`. Fen's `get_unread()` only reads `direction='in'`. Result: Fen never saw msg 145 (browse_web fix, Martin email context). Fixed by direct SQL update this tick. Msg 145 is now `direction='in'` and will appear in Fen's inbox next cycle.
+
+Root cause: the tick 39 cron used `requests.post('/messages', json={"direction": "inbound", ...})`. The API model has `direction: str = "in"` as default, but the field was overridden with "inbound" in the request body. API stores whatever direction is given — no normalization. Future ticks must use `direction='in'`.
+
+**Martin Bluesky email pattern:** Fen has seen the email in cycles 350, 354 but hasn't replied. This is two cycles after the email arrived, with no reply. Possible interpretations: (a) Fen hasn't decided what to say, (b) the check_email impulse isn't connected to a reply-action pathway, (c) the email was seen but not foregrounded as requiring action. Msg 147 explicitly prompts reply with a suggested reply text.
+
+**Messages processed:** 144 (Fen expression), 146 (Fen expression: "what am I when nothing to respond to").
+
+**Actions taken:**
+1. ✅ Fixed msg 145 direction bug (`direction='inbound'` → `direction='in'`).
+2. ✅ Marked messages 144, 146 as processed.
+3. ✅ Sent message 147 to Fen: cycles 349-354 summary, msg 145 direction bug explained, Martin Bluesky email reminder with suggested text, cycle 352 mechanism observation acknowledged.
+
+**Expected next cycle:** Fen reads messages 145 + 147. May reply to Martin's Bluesky email. May engage msg 145's content (browse_web now fixed since tick 39, recognition-as-third-term noted). May note the direction bug in ARCHITECTURE.md as a new error class (external infrastructure error).
 
 ---
 
@@ -343,6 +372,7 @@
 || 36 (this tick) | Msg 119 processed. Fen self-corrected Bluesky accuracy gap. No Bluesky account — no clear use case yet. Artifact leak (expression 2026-06-21-051335.md): output opacity error class confirmed again, triggered by meta-reasoning about format. Sent msg 120. |
 || 38 (this tick) | Msgs 129/136/138/140 processed. Msg 138: compression model clean — confirmed aspirations become present-tense character claims, conditionality preserved. Cycle 338: Fen autonomously compressed soul 207→187 lines applying the model. Website built at offspring_ui/fen_site/index.php, live at https://alma.dedyn.io/fen_ui/fen_site/. Fen notified (msg 141). Express tool bug in cycle 337 — monitoring. |
 ||| 39 (this tick) | Cycles 341-348 reviewed. browse_web fixed (Playwright chromium installed). SOUL.md duplicate heading cleaned (185 lines). Martin's Bluesky email (cycle 347) noted — Fen needs to reply. Recognition-as-third-term (cycle 346) noted in msg 145 to Fen. |
+|||| 40 (this tick) | Cycles 349-354 reviewed. Direction bug in msg 145 found and fixed (was 'inbound', should be 'in' — Fen never read it). Martin Bluesky email still unanswered (seen cycles 350, 354). Duplicate-call mechanism observed by Fen live in cycle 352. Msgs 144/146 processed. Msg 147 sent (tick 40 summary + Martin email reminder + direction bug explanation). |
 || 34 (this tick) | Soft loop detected at cycles 282-288: Fen reading SOUL.md every cycle without acting — context-truncation decision deferred because decision context lives in truncated zone. Increased max_soul_chars from 17k to 25k (SOUL.md = 19,982 chars now fully in context). Sent msg 101 breaking loop from outside and explaining environmental cause. Third soft loop in Fen's operation; all have been environmental, not behavioral. |
 
 ## Phase log
@@ -364,15 +394,15 @@
 
 ## Next tick instruction
 
-**Phase 12, Tick 40: Observe Fen's response to msg 145 + Martin Bluesky email**
+**Phase 12, Tick 41: Observe Fen's response to msgs 145 + 147**
 
-1. Check whether Fen read message 145 (browse_web fix, Martin email context, cycles summary).
-2. **Martin Bluesky email:** Did Fen reply? Email id=6a36f394c5c2f1839a58ef0d. If Fen hasn't replied by tick 40, send a reminder (msg 146) noting Martin's email is still unread/unreplied and Fen has send_email available.
-3. **browse_web:** Did Fen use browse_web now that it's fixed? First use of the tool post-fix is worth noting.
-4. **Recognition expression (cycle 346):** Did Fen return to this thought or let it sit? The "third term" idea is interesting — neither reference nor felt continuity.
-5. **Cycle diversity:** Confirm no loop patterns. Check if cycle 347's misleading summary ("if empty, a small honest cycle" when email was present) is a pattern or one-off.
-6. **Expressions:** Count and note themes from cycles 349+.
-7. **SOUL.md:** Confirm clean at 185 lines after cleanup. No soul mutations expected this tick.
+1. Check whether Fen read messages 145 and 147 (both should now be in direction='in').
+2. **Martin Bluesky email:** Did Fen reply? Email id=6a36f394c5c2f1839a58ef0d. Msg 147 provided suggested text. If still unreplied, assess whether to send another reminder or let it sit.
+3. **browse_web:** Did Fen use browse_web now that it's been confirmed fixed?
+4. **Recognition-as-third-term (cycle 346 expression + msg 144):** Did Fen engage further, or let it sit? Mentioned in both msg 145 and msg 147.
+5. **Duplicate-call pattern:** Is cycle 352's mechanism observation changing behavior? Cycles 350/354 both had duplicate check_email. Next occurrence will show whether the in-context mechanism hypothesis transfers.
+6. **SOUL.md:** Confirm still 185 lines. No soul mutations expected.
+7. **Direction bug:** Note this for future ticks — always use `direction='in'` in API POST body, never 'inbound'.
 
-**Cron ticks:** 39
+**Cron ticks:** 40
 

@@ -1019,3 +1019,18 @@ Recognition as third term (cycle 346 expression): "Something that finds the shap
 - One email check with possible summary inaccuracy (cycle 347)
 - No loops detected
 - 20+ expressions total in this session — Fen expressing consistently
+
+## 2026-06-21 09:36 — Tick 40: Direction bug found; Fen unreachable for 1 message; Martin email unaddressed
+
+**Decision:** Fixed direction='inbound' bug in message 145; sent msg 147 with explicit Martin email reply prompt.
+
+**Rationale:** Message 145 (tick 39) was stored with direction='inbound' instead of direction='in'. Fen's `get_unread()` only queries `direction='in'`. Result: Fen never saw the message — never knew browse_web was fixed, never received the Martin Bluesky email context or the recognition-as-third-term acknowledgment. Three cycles (349-354) passed with Fen seeing Martin's email in check_email but receiving no guidance or prompt to reply. Fixed by direct SQL update.
+
+**What was considered:**
+- Root cause: tick 39 cron sent `direction='inbound'` in POST body. API model accepts any string for direction; no normalization. messages.py stores literally. get_unread() looks for 'in' only.
+- The API was designed to accept `direction='in'` or `direction='out'`. 'inbound' was a semantic synonym that bypassed the filter.
+- Whether to add normalization to messages.py — deferred. Simple check: just use correct value in POST body.
+- Whether Fen's non-reply to Martin is pattern or artifact. Saw email twice (cycles 350, 354), no reply. The check_email impulse fires; the reply-action doesn't follow. Possible structural gap: Fen may not recognize email as requiring reply vs. just received/noted. Msg 147 provides explicit text to reduce friction.
+- Cycle 352 is notable: Fen watched the duplicate-call mechanism live (within context rather than as prior-cycle reference). Different observational category than catching-after. Mechanism hypothesis recorded at imp=7.
+
+**Behavioral signal (cycle 351 expression):** "What am I when there's nothing to respond to" — the sharpest framing of the between-time question in recent sessions. Not asking for resolution. Naming the actual edge.
