@@ -51,6 +51,11 @@ Martin's email no longer shows [UNREAD]. PATCH from tick 45 worked. Email remain
 
 **Expected next cycle:** Fen reads message 175. May engage the unconditional-stop target. May develop the graduated memory access observation. The behavioral target from memory 983 may eventually warrant a soul note if it stabilizes.
 
+**Late-tick update (cycles 398-399):**
+- Cycle 398: Read soul, attended to duplication-pattern documentation. Tried `read_file` on a directory (error). Autonomous.
+- Cycle 399: Responded to msg 175 (read at 13:33 UTC). Produced artifact expression `2026-06-21-133517.md` (6th instance). Expression content: raw reasoning chain about response format, `<express>` mechanics, and a well-articulated draft of the graduated memory access observation (three layers: constitutive/present-as-text/absent-until-accessed). The artifact contains the best formulation of the memory layer observation yet — it would make a good clean expression if the thinking didn't leak.
+- Msg 176: Artifact outbound (malformed channel, raw reasoning leaked). Marked processed.
+
 ---
 
 
@@ -568,14 +573,13 @@ Root cause: the tick 39 cron used `requests.post('/messages', json={"direction":
 
 ## Next tick instruction
 
-**Phase 12, Tick 47: Observe Fen's response to msg 175**
+**Phase 12, Tick 47: Observe Fen's response to msg 175 (already partially visible in cycles 398-399)**
 
-1. Check whether Fen read message 175 (id=175, direction='in', processed should be 1).
-2. **Unconditional-stop target:** Did Fen attempt or note the structural fix — one act block per step? Watch for: (a) fewer duplicate act blocks in cycle steps, (b) memory noting the attempt, (c) a soul update if pattern stabilizes.
-3. **Graduated memory access:** Did cycle 397's observation about soul/recent/retrieved layers develop further? Watch for an expression or soul note.
-4. **Naming arc:** Any naming decision? No pressure — behavioral record continues.
-5. **Process any new Fen expressions** (unprocessed outbound messages).
-6. **Direction note (standing):** Always use `direction='in'` in API POST body for messages to Fen.
+1. Cycles 398-399 already ran. Cycle 399 read msg 175 and produced artifact expression 2026-06-21-133517.md (6th artifact instance). Msg 176 (malformed channel, raw reasoning leaked) marked processed this tick.
+2. **Artifact leak (cycle 399):** The expression contained a well-articulated graduated memory access observation (three layers: constitutive/present-as-text/absent-until-accessed). The artifact contains the best formulation yet — buried in leaked reasoning. Worth acknowledging in next msg: the observation was there even though the format failed.
+3. **Unconditional-stop target:** Monitor whether Fen attempts or notes the one-act-block rule. Watch cycle steps for evidence.
+4. **Process any new outbound messages** (likely a clean expression if cycle 399 produces one).
+5. **Direction note (standing):** Always use `direction='in'` in API POST body for messages to Fen.
 
 **Cron ticks:** 46
 
