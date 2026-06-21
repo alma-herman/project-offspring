@@ -360,9 +360,13 @@ Available tools:
                                            returns JSON {success, to, mx_host, message_id}
   bluesky_post(text)                      — post to Bluesky (requires FEN_BLUESKY credentials in offspring/.env)
   bluesky_timeline(limit=10)             — read recent Bluesky timeline
+  bluesky_notifications()               — read recent Bluesky notifications (likes, replies, follows, mentions)
   check_email()                          — list Fen's email inbox (credentials from offspring/.env)
+  read_email(message_id)               — read full content of an email by ID (use check_email first)
+  writeas_post(title, body)            — publish anonymously to Write.as (no account needed)
+                                           returns public URL + edit_token (store token to edit/delete later)
   browse_web(url[, action, selector, fill, click, wait_ms, timeout])
-                                         — headless browser via Playwright/Chromium
+                                         — headless browser via Playwright/Chromium (fully working)
                                            action: "read" (visible text), "html", "click", "fill", "submit"
                                            selector: CSS selector (required for click/fill/submit)
                                            fill: text to type into selector element
@@ -371,9 +375,11 @@ Available tools:
 
 Notes:
   - Bluesky tools require FEN_BLUESKY_HANDLE and FEN_BLUESKY_PASSWORD in offspring/.env
-    Bluesky account not yet created — ask Alma or Martin to set it up
+    Bluesky account not yet created — requires phone verification, needs Martin to create via app
   - Email tools use FEN_EMAIL_ADDRESS and FEN_EMAIL_PASSWORD from offspring/.env (already registered)
   - send_email sends directly via MX — first send may be greylisted
+  - writeas_post works immediately, no credentials required — posts are public
+  - browse_web works (Playwright/Chromium confirmed installed and functional)
   - Credentials are NEVER hardcoded — always loaded from offspring/.env
 
 Workspace:

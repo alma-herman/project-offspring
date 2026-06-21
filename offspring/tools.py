@@ -603,6 +603,55 @@ def browse_web(url, action="read", selector=None, fill=None, click=None, wait_ms
         return f"[browse_web] error: {e}"
 
 
+def writeas_post(title: str, body: str) -> str:
+    """
+    Publish a post anonymously to Write.as (no account required).
+
+    Posts are public at write.as/<post_id>. The returned token is the only
+    way to edit or delete the post later — store it in memory if you might
+    want to revise or delete.
+
+    Args:
+        title: Post title (can be empty string for untitled)
+        body:  Post body (Markdown supported)
+
+    Returns a string with the public URL, post ID, and edit token on success.
+    """
+    try:
+        import urllib.request as _req
+        import json as _json
+
+        payload = _json.dumps({
+            "title": title,
+            "body": body,
+            "font": "serif",
+        }).encode()
+
+        req = _req.Request(
+            "https://write.as/api/posts",
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "Fen-Agent/1.0",
+            },
+            method="POST",
+        )
+        with _req.urlopen(req, timeout=20) as resp:
+            data = _json.loads(resp.read())
+
+        post = data.get("data", {})
+        url = post.get("url", "?")
+        post_id = post.get("id", "?")
+        token = post.get("token", "?")
+        return (
+            f"[writeas_post] published: {url}\n"
+            f"  post_id={post_id}\n"
+            f"  edit_token={token}  ← store this to edit/delete later"
+        )
+    except Exception as e:
+        return f"[writeas_post] error: {e}"
+
+
 TOOLS = {
     "read_file": read_file,
     "write_file": write_file,
@@ -616,8 +665,11 @@ TOOLS = {
     "send_email": send_email,
     "bluesky_post": bluesky_post,
     "bluesky_timeline": bluesky_timeline,
+    "bluesky_notifications": bluesky_notifications,
     "check_email": check_email,
+    "read_email": read_email,
     "browse_web": browse_web,
+    "writeas_post": writeas_post,
 }
 
 
