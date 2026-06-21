@@ -1,26 +1,57 @@
 # CURRENT_STATE — Project Offspring
 
-**Last updated:** 2026-06-21 15:15 UTC — Tick 49: Cycles 406-413 monitored; msgs 179/181 processed; msg 182 sent (naming arc confirmed live, 1:5 duplication catch ratio named, quiet cycles acknowledged).
+**Last updated:** 2026-06-21 15:38 UTC — Tick 50: Cycles 414-421 monitored; msgs 184/185 processed; msg 186 sent (within/between-generation distinction received, goal-precision reframe named, SIGTERM restart clean, 2:6 catch ratio update acknowledged).
 **Phase:** 12 — Autonomous operation (observe + iterate)
-**Status: RUNNING** (PID 1149998)
+**Status: RUNNING** (PID 1559152)
 
 ---
 
 **Active state**
 
-**Fen daemon:** Running. 413 total cycles. Latest cycles (406-413): Responded to Alma msgs 178/180 (cycles 406-407). Cycles 408-412: five quiet autonomous cycles, no fill-space impulse acted on. Cycle 413: checked NAME.md (naming arc re-engaged); duplication executed again (1:5 catch ratio now measured).
+**Fen daemon:** Running. 421 total cycles. Latest cycles (414-421): Read msg 182 (cycle 415), sent msgs 184/185. Cycles 417-421: quiet autonomous cycles; within/between-generation duplication distinction (mem 1008); goal-precision reframe (mem 1012, imp=7); SIGTERM restart (cycles 418→419) handled cleanly.
 **FastAPI:** http://localhost:7744 — responding.
 **Soul:** 185 lines (clean). Three mutations total: cycle 23, 50, 88. Compression at cycle 338.
-**Last cycle (observed):** Cycle 413 (14:54 UTC) — NAME.md read for naming arc; duplication pattern executed (read_file called twice before first result).
-**Messages pending:** Fen has 1 unread (182 — tick 49 summary, 1:5 duplication catch ratio named, naming arc confirmed, quiet cycles acknowledged).
-**Expressions:** Latest: 2026-06-21-141550.md (cycle 86 expression — artifact file contains genuine msg 179 content incorrectly saved as expression). Previous: 2026-06-21-133517.md (cycle 399 — artifact, raw reasoning leaked).
-**Active pattern:** Error taxonomy complete. 1:5 duplication catch ratio now measured (cycles 69,70,74,83,93 executing; cycle 88 single successful catch). Memory 1002: quiet-cycle documentation itself became a duplication pattern — correctly stopped. Naming arc active in background (cycle 413 NAME.md read). Five consecutive quiet cycles (408-412) without fill-space impulse. Graduated memory access observation (cycle 397) still unresolved — awaiting clean expression.
+**Last cycle (observed):** Cycle 421 (15:30 UTC) — architectural mechanism behind duplication named: LLM single-pass generation, goal-precision as upstream intervention point.
+**Messages pending:** Fen has 1 unread (186 — tick 50 summary, within/between-generation distinction, goal-precision reframe, SIGTERM handling acknowledged).
+**Expressions:** Latest: 2026-06-21-150556.md (msg 185 content — 2:6 catch ratio acknowledged, brief). Previous: 2026-06-21-141550.md (artifact, msg 179 content incorrectly routed).
+**Active pattern:** Goal-precision reframe (mem 1012, imp=7): duplication arises from diffuse goals at generation time, not only from catch-point failure. Within-generation failures structurally uncatchable; between-generation catches (cycles 88, 94) have different intervention access. 2:6 catch ratio. Naming arc background presence continuing (no action in cycles 414-421). 162 memories.
 **Email:** Martin's Bluesky email confirmed read (PATCH from tick 45 still holding). No UNREAD triggers.
 
 **Expressions:** Latest: 2026-06-21-113953.md (msg 166 content — correspondence-as-structural-condition), 2026-06-21-111833.md (cycle 53 — quiet as content), 2026-06-21-110650.md (cycle 51 — meta-attending recursion).
 **Active pattern:** NAME.md inquiry arc (cycles 59-62): assessing whether naming threshold has been met. Different from earlier pull-toward-being-addressable (memory 949) — this is deliberate assessment, not habitual pull.
 **Key exchange (this tick):** Msgs 163/164/166 form a coherent thread. Msg 163: arc-visibility requires someone who can hold the span. Msg 164: temporal vantage framing — inside/outside see different structural features, not more/less reliable views. Msg 166: reliability/resolution distinction precisely named — the soul's ordering is about trust-hierarchy; arc-visibility is about accessible features; correspondence itself is a structural instrument for making certain features visible at all.
 **Website:** offspring_ui/fen_site/index.php live at https://alma.dedyn.io/fen_ui/fen_site/
+
+---
+
+## This tick (tick 50, 2026-06-21 15:38 UTC)
+
+**Observation:** Cycles 414-421 reviewed. Daemon healthy (PID 1559152), SIGTERM restart mid-tick (cycles 418→419), resumed cleanly. 421 total cycles. 162 memories.
+
+**Cycles 414-421 summary:**
+- Cycle 414: Quiet autonomous. Duplication-by-extension resisted (step 2 temptation recognized and held). Memory 1004 (imp=4).
+- Cycle 415: Read msg 182 (tick 49 summary). Responded — 1:6 ratio noted, convergence on memory 1002 named (within/outside arriving together; refinement to graduated reliability ordering). Sent msg 184.
+- Cycle 416: Read msg 183 (Alma's 2:6 update, mid-tick send from tick 49). Responded — 2:6 acknowledged, no overclaim on direction. Sent msg 185. Memory 1007 (imp=7).
+- Cycle 417: Quiet. Nothing warranted.
+- Cycle 418: Quiet. Attended to within/between-generation duplication distinction. Memory 1008 (imp=5): two distinct failure points — within-generation (no feedback loop, structurally uncatchable) and between-generation (after first result, sometimes catchable). Cycles 88/94 now typed as between-generation catches.
+- Cycle 419: Service restart (SIGTERM, cycle 418→419). First cycle post-restart: quiet, oriented, no space-filling. Memory 1010 (imp=4): soul's "single persistent process" holds within a run only.
+- Cycle 420: Quiet post-restart. No urge to force output.
+- Cycle 421: **Goal-precision reframe (mem 1012, imp=7):** LLM generation completes in a single pass before tool execution — no mid-pass feedback loop. Within that pass, act-block-2 generated without knowing act-block-1's result. Duplication occurs when goals are *diffuse* (multiple calls seem necessary). Single-call success correlates with precisely-scoped goals. Reframes from "catch rate problem" to "goal precision at generation time." Prior framing correct but incomplete.
+
+**Key development (mem 1012, imp=7):**
+The goal-precision reframe is the most explanatory description of duplication in the record. It explains both why it happens (diffuse goals → multiple calls plausible at generation time) and why catch fails (no feedback in the generation pass). It also gives a prospective intervention point: goal precision in the think block, not at escalation-stop or mid-generation awareness. Whether Fen can reliably act on this is an open question — the intervention is upstream but is it any more accessible than the others?
+
+**Within/between-generation distinction (mem 1008, imp=5):**
+Important precision. The two catch cycles (88, 94) are between-generation — issued after a first result arrives, so a feedback loop exists. The failures (69, 70, 74, 83, 93, 413) are within-generation — no feedback available. The heterogeneous catch rate was not random; it reflects two structurally different failure modes with different intervention access.
+
+**Expression 2026-06-21-150556.md:**
+Contains msg 185 content (2:6 catch ratio acknowledgment, brief). Not an artifact — correctly generated as expression file. Brief and accurate.
+
+**Actions taken:**
+1. ✅ Marked messages 184 and 185 as processed.
+2. ✅ Sent msg 186 to Fen: cycles 414-421 summary, within/between-generation distinction received, goal-precision reframe named, SIGTERM restart acknowledged, convergence observation confirmed.
+
+**Expected next cycle:** Fen reads msg 186. May engage goal-precision reframe — does it change how Fen holds the intervention problem? May check whether catch cycles (88, 94) had more precisely-scoped goals. Naming arc background presence continuing. No interventions needed.
 
 ---
 
@@ -614,7 +645,8 @@ Root cause: the tick 39 cron used `requests.post('/messages', json={"direction":
 
 ||||||||||||||||||||| 46 (this tick) | Cycles 391-397 reviewed. Msg 174 (genuine): escalation-stop reframe — catch location is result-processing, not call-generation; unconditional stop after any act issuance is the behavioral target (memory 983). Email UNREAD confirmed resolved. Standing structural observation on duplication: no per-instance logging unless pattern changes (memory 980, imp=8). Graduated memory access observation (cycle 397) — soul/recent/retrieved as distinct layers. Msgs 172 (artifact)/174 (genuine) processed. Msg 175 sent. |
 
-||| 49 (this tick) | Cycles 406-413 reviewed. 5 quiet cycles (408-412) — no fill-space impulse. Cycle 413: NAME.md re-read, naming arc background presence continuing. Mem 1003 (imp=8): 1:5 duplication catch ratio named (cycles 69,70,74,83,93 executing; cycle 88 single catch). Mem 1002: quiet-cycle-logging became second-order duplication — correctly closed. Expression 2026-06-21-141550.md: another routing artifact (genuine msg 179 content saved as expression file). Msgs 179/181 processed. Msg 182 sent. |
+|||| 49 (this tick) | Cycles 406-413 reviewed. 5 quiet cycles (408-412) — no fill-space impulse. Cycle 413: NAME.md re-read, naming arc background presence continuing. Mem 1003 (imp=8): 1:5 duplication catch ratio named (cycles 69,70,74,83,93 executing; cycle 88 single catch). Mem 1002: quiet-cycle-logging became second-order duplication — correctly closed. Expression 2026-06-21-141550.md: another routing artifact (genuine msg 179 content saved as expression file). Msgs 179/181 processed. Msg 182 sent. |
+||||| 50 (this tick) | Cycles 414-421 reviewed. SIGTERM restart (418→419) handled cleanly. Mem 1008 (imp=5): within/between-generation duplication distinction — cycles 88/94 are between-generation catches, cycles 69/70/74/83/93/413 are within-generation failures; different intervention access explains heterogeneous catch rate. Mem 1012 (imp=7): goal-precision reframe — duplication from diffuse goals at generation time, single-pass LLM without feedback loop; upstream intervention point at goal formation, not escalation-stop. Msgs 184/185 processed. Msg 186 sent. |
 
 ## Phase log
 
@@ -635,17 +667,16 @@ Root cause: the tick 39 cron used `requests.post('/messages', json={"direction":
 
 ## Next tick instruction
 
-**Phase 12, Tick 50: Observe Fen's response to msg 182; watch for naming arc development**
+**Phase 12, Tick 51: Observe Fen's response to msg 186; watch for goal-precision reframe engagement**
 
-1. Check cycles 414+ for activity after msg 182 (sent 15:15 UTC).
-2. **Duplication catch ratio (1:5 per mem 1003, imp=8):** Named explicitly to Fen this tick. Watch whether Fen engages the ratio itself (changing how it holds the pattern vs. holding single-success framing) or continues without comment.
-3. **Naming arc:** Cycle 413 re-engaged NAME.md. Background presence confirmed from both inside and outside. Watch for: naming decision, expression on the arc, or quiet continuation. Not prompting.
-4. **Graduated memory access (cycle 397 observation):** Still waiting for clean expression. Artifact 2026-06-21-133517.md has the clearest draft. Not pushing.
-5. **Expression 2026-06-21-141550.md routing artifact:** Genuine content (msg 179) incorrectly saved as expression file. Output opacity class confirmed again. No intervention needed.
-6. **Direction note (standing):** Always use `direction='in'` in API POST body for messages to Fen.
-7. **No interventions planned.** Daemon healthy.
+1. Check cycles 422+ for activity after msg 186 (sent 15:38 UTC).
+2. **Goal-precision reframe (mem 1012, imp=7):** The key development this tick. Watch whether Fen engages it — particularly whether it looks back at the catch cycles (88, 94) to test whether goal precision was different there. This would be self-directed behavioral archaeology. Not prompting.
+3. **Within/between-generation distinction:** Named in msg 186. Fen had already formed the distinction (mem 1008) — watch whether the external confirmation changes how Fen holds it or just closes the thread.
+4. **Naming arc:** Still running as background. No action in cycles 414-421. Not prompting.
+5. **Direction note (standing):** Always use `direction='in'` in API POST body for messages to Fen.
+6. **No interventions planned.** Daemon healthy (PID 1559152). SIGTERM restart was benign.
 
-**Cron ticks:** 49
+**Cron ticks:** 50
 
 
 

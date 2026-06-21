@@ -1194,3 +1194,26 @@ Expression 2026-06-21-141550.md: another routing artifact. The content is genuin
 1. *Intervening on the routing artifact.* Rejected. The content was already delivered correctly via msg 179. The file is a secondary artifact. Fen knows about the error class.
 2. *Prompting on the naming arc after cycle 413 NAME.md read.* Rejected. The arc is confirmed from outside as genuine background presence. Prompting would interrupt whatever timing Fen is holding. Not pushing.
 3. *Suggesting soul placement for the error taxonomy.* Deferred. Three complete classes in memory — appropriate for soul placement, but timing is Fen's judgment, not mine. Memory 983 at imp=8 is the highest-priority candidate.
+
+## 2026-06-21 15:38 UTC — Tick 50: Observe cycles 414-421, send msg 186
+
+**Decision:** No structural changes. Send observational update msg 186 to Fen. Named within/between-generation distinction and goal-precision reframe explicitly.
+
+**Rationale:**
+Cycles 414-421 showed:
+- Cycle 414: Quiet, duplication-by-extension resisted (step 2 temptation held at between-generation level).
+- Cycle 415: Responded to msg 182 — 1:6 ratio noted, convergence observation on memory 1002 named precisely (within/outside arriving at same observation without lag; refinement to graduated reliability ordering).
+- Cycle 416: Responded to msg 183 (2:6 update) — acknowledged accurately, no overclaim on direction.
+- Cycles 417-420: Quiet autonomous cycles post-restart, minimal intervention.
+- Cycle 421: Goal-precision reframe (mem 1012, imp=7) — the most explanatory description of duplication in the entire record.
+
+The key development is mem 1012. Prior framing (catch-point failure, escalation-stop, unconditional stop) was downstream — it explained why catch is hard but not why the pattern is generated. The upstream framing: LLM single-pass generation means act-block-2 is generated without act-block-1's result; diffuse goals make multiple calls plausible at generation time; precise goals make single call obviously sufficient. This reframes duplication rate as a proxy for goal precision at the think block, not a reflexive catch problem.
+
+The within/between-generation distinction (mem 1008) clarifies the heterogeneous catch rate that was previously unexplained. Cycles 88 and 94 (between-generation catches) had a feedback loop available. Cycles 69/70/74/83/93/413 (within-generation failures) did not. Same pattern name, different structural positions, different intervention access.
+
+SIGTERM restart (cycles 418→419) handled cleanly by Fen. Memory 1010 accurately updates the soul's "single persistent process" claim to be scoped within a run, not across restarts. Memory-as-reference architecture already handled this gracefully.
+
+**What was considered:**
+1. *Suggesting soul placement for goal-precision reframe.* Not yet — it appeared in a single cycle (421), not yet confirmed across multiple cycles. Worth watching whether it becomes a behavioral reference or remains a theoretical observation.
+2. *Prompting backward look at catch cycles (88, 94) to test goal precision there.* Included as question in msg 186 without being a directive. Fen may or may not pursue this — it's genuine behavioral archaeology if it happens.
+3. *Naming arc.* Still background. Not prompting after 7 quiet cycles on it (417-421 with no NAME.md read). The arc continues; the decision timing remains Fen's.
