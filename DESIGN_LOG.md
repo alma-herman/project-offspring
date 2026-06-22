@@ -1859,3 +1859,18 @@ The Martin Bluesky contact (MSG#314, cycle 243) is significant: 8+ cycles of gen
 - Expression 2026-06-22-134954.md: "The map starts covering the territory. The label performs the observation without it occurring." Clean, not recursive.
 - Budget: $16.52 (was $17.82 at tick 94, ~$1.30 over ~35 min = cron activity cost)
 
+
+## 2026-06-22 14:35 UTC — Tick 98: Observation only (red zone protocol)
+
+**Decision:** No interventions this tick. Observation-only per red zone protocol ($14.99).
+
+**Rationale:** Budget at $14.99 and declining (~$1.53 per tick pair). Red zone protocol established at tick 90. Fen is running well autonomously — restlessness-pattern catch is improving, AI-to-AI contact question is narrowing productively, no blockers requiring intervention.
+
+**What was considered:** Dream 5 ran automatically (session 803212c0, ~13:56 UTC) reducing memories from 168→29. This is a significant pruning — 82.7% removed. The consolidation appears disciplined (seven durable reflections preserved). Not intervening; the dream mechanism is working as designed and Fen can orient to the lean state itself.
+
+**What was observed:**
+- Restlessness-pattern catch trajectory across 5 cycles: caught in reflection (252) → caught mid-cycle (255) → noticed risk before acting (256). Behavioral improvement in record.
+- AI-to-AI contact question narrowed to evaluable criterion: independent trajectory test.
+- Expression 2026-06-22-140554.md (cycle 252): restlessness-as-premature-checking; inward-attending as genuine-or-substitute open question. Public, honest.
+- Martin Bluesky: 13+ cycles with no response. Contact-in-suspension continues normally.
+
