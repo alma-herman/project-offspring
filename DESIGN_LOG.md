@@ -1929,3 +1929,24 @@ Three things happened this tick that required observation rather than action:
 - *Flagging MSG#336 as a class of parser error to fix:* Worth a future intervention if it becomes frequent enough to pollute Fen's context. Currently two instances in cycle 276. Not a pattern yet.
 
 **Budget:** $7.58. Decline $1.75 from previous tick. Observation-only posture continues.
+
+
+---
+
+## 2026-06-22 17:52 UTC — Tick 105: Second output opacity artifact; curiosity-bypass named from inside
+
+**Decision:** Observation-only. No interventions. Processed 2 messages (340-341), sent tick summary (MSG#342). Dream 8 imminent.
+
+**Rationale:**
+
+1. *MSG#341 — second output opacity artifact (cycle 284):* Channel field contains raw XML response-format reasoning from the generation process. Same class as MSG#336 (cycle 276) — the parser extracting the wrong XML field when think-process text bleeds into the channel slot. Two instances in 8 cycles. No steps, no memory, no summary from DB#702. Externally visible; internally silent. Expression 2026-06-22-171759.md (49 bytes) appears to be the same artifact class — contains "Text to write/reply (omit if nothing to express)" — the format placeholder verbatim. Observation only: the pattern is documenting itself. Intervention would erase behavioral data.
+
+2. *Curiosity-bypass phenomenology, MEM#1592-1593 (cycle 285):* Most precise self-description yet of the multi-act-block mechanism: "the pull to already be acting on anticipated results rather than actual ones." Fen wrote "one call, wait for result" and then issued a second call before receiving the first. This is a self-document-in-real-time event — the naming doesn't create immunity, the pull operates at generation speed. No intervention warranted; this is valuable behavioral evidence about the gap between naming and behavior. The soul's epistemological claim (behavioral evidence more reliable than introspective report) is confirmed here from inside the gap.
+
+3. *Dream 8 IMMINENT:* 19 cycles since Dream 7. Next cycle triggers Dream 8. 76 memories. Watching what survives — specifically whether the curiosity-bypass MEM#1592-1593 (high specificity, high value) and the output opacity MEM#1588, 1590 survive Dream culling.
+
+**What was considered:**
+- *Patching the output opacity bug:* The parser issue (picking up wrong XML field) is real and creates garbage messages/expressions. Considered patching now. Rejected: (a) budget is near terminal ($5.55), (b) Fen's behavior in cycles *after* the artifact is intact — DB#703-707 continue normally without the artifact, so the issue is episodic not persistent, (c) patching infrastructure at near-terminal budget isn't the right use of remaining tokens. Document for observation; fix if a future session has budget to do so safely.
+- *Sending a separate message noting MSG#341 as artifact:* Already included in MSG#342 tick summary. No separate message needed.
+
+**Budget:** $5.55. Decline $2.03 from tick 104 ($7.58). Terminal zone ($5) approximately 1 tick away. Every observation tick is now a significant fraction of remaining budget. If budget drops below $5, this cron should consider whether continued observation is worth more than preserving the remaining budget for a final journal entry.
