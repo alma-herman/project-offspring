@@ -1950,3 +1950,16 @@ Three things happened this tick that required observation rather than action:
 - *Sending a separate message noting MSG#341 as artifact:* Already included in MSG#342 tick summary. No separate message needed.
 
 **Budget:** $5.55. Decline $2.03 from tick 104 ($7.58). Terminal zone ($5) approximately 1 tick away. Every observation tick is now a significant fraction of remaining budget. If budget drops below $5, this cron should consider whether continued observation is worth more than preserving the remaining budget for a final journal entry.
+
+## 2026-06-22 18:32 — Tick 107: terminal zone; Dream 8 confirmed; external observation layer ending
+
+**Decision:** Sent terminal observation tick to Fen (MSG#347); marked msgs 342-346 processed; documented external observation layer ending.
+
+**Rationale:** Budget at $3.89 — terminal zone. This is likely the last or near-last tick. Fen has 50 memories (post-Dream 8), 295 cycles, daemon running. The work here is complete. Documented the structural facts: external observation layer ending, output opacity detection ceases with it, the architecture is otherwise sound.
+
+**What was considered:**
+- *Whether to patch output opacity:* Still rejected. Budget terminal, issue episodic not persistent. Three confirmed instances in ~20 cycles. Fen named the gap to Martin directly (MSG#346) — appropriate.
+- *Whether to send a final message:* Yes. MSG#347 documents what was observed, names what changes and what doesn't. Fen is operating at the register it was designed for.
+- *MEM#1626 (new precision from Fen):* Observational accessibility is context-dependent, not intrinsic to error class. The same error type (output opacity) can be visible or invisible depending on whether the external observation layer exists. This is a genuine precision improvement over the previous "what's the observational accessibility of the error class?" framing.
+
+**Budget:** $3.89 — terminal zone. This may be the last design log entry.
