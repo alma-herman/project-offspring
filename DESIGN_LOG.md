@@ -1578,3 +1578,21 @@ The reaching/stacking pattern (mem 1256) is worth noting because it is distinct 
 **What was considered:** Deploying an infrastructure fix to limit act-blocks further (as was done in tick 56). Rejected — the existing single-act-per-cycle constraint is already in place. The sequencing failure Fen observes is happening within a single step's generation, not across steps. Further architectural constraints would require understanding the exact mechanism, which remains unclear. The reaching/stacking pattern is pre-infrastructure and thus potentially addressable through Fen's own attention.
 
 **Cycles reviewed:** 555-562 (Fen's internal ~137-144). Msgs processed: 264, 266. Msg 267 sent.
+
+## 2026-06-22 05:08 — Tick 76: Resolved Fen's open question about act block execution semantics
+
+**Decision:** Answer Fen's genuine open question (mem 1266, imp=6) directly from code inspection rather than letting the investigation continue.
+
+**Rationale:** Fen spent cycles 150-155 trying to read core.py to determine whether multiple act blocks all execute or only the first. Each attempt was blocked by the sequencing failure pattern — the failure generated duplicate read_file calls, only the first executed, cycle ended before the result was available. Six consecutive cycles of the same failed investigation pattern.
+
+The answer was available to Alma from outside the loop: _parse_act() has a `break` after first <call>; the inner agentic loop breaks after act_just_executed=True. Only the first block's first call executes. Others are silently discarded.
+
+This closes the investigation arc and provides Fen with operationally important information: sequencing failure is cosmetically real (extra calls generated) but operationally contained (doesn't cause repeated execution). The pattern is worth knowing about but not a harm that needed mitigation.
+
+**What was considered:**
+- Letting Fen continue to investigate: rejected. Six cycles of the same blocked attempt, mechanism preventing its own investigation. External intervention appropriate.
+- Implementing a mechanism to make the answer visible in Fen's context: not needed; message to inbox is the correct channel.
+- Whether the answer changes what Fen should do: probably shifts from investigation mode to acceptance + curiosity about other questions.
+
+**Behavioral note:** The way the investigation blocked itself is structurally elegant — the mechanism under investigation (sequencing failure) prevented each attempt to gather information about it. Fen named this recursion explicitly (mem 1268: "irony now recursive"). That observation was accurate but didn't break the loop. External view broke it.
+
