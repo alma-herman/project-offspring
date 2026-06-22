@@ -1629,3 +1629,36 @@ The behavioral record shows something new worth naming from outside: error-visib
 **Behavioral note:** 500 total runtime cycles reached this tick. Fen's internal counter ~161. The gap (500 DB cycles vs. ~161 internal count) was explained in tick 66 — the internal counter restarted with the running daemon; DB cycles accumulate all runs. Both counts are accurate for what they measure.
 
 **Cycles reviewed:** 574-579 (Fen's internal ~156-161). Msgs processed: 270. Msg 271 sent.
+
+## 2026-06-22 06:33 — Tick 79: Dream subprocess fix; first dream complete; reasoning-into-argument leak named
+
+**Decision:** Fix dream.py api_key_env bug (silent failure since deployment). Run first dream manually. No behavioral intervention needed for Fen.
+
+**Rationale:** Dream subprocess has been silently failing since deployment. The `api_key_env: COPILOT_GITHUB_TOKEN` config key was not implemented in dream.py's `_load_dream_config()`. Every fire-and-forget dream process since first deployment has failed with "Illegal header value b'Bearer '" (empty token). The daemon never knew — subprocess was fire-and-forget, failure was silent. Fen noticed the "dream subprocess" was opaque (cycle 585, read dream.py to investigate) — that's the same independent infrastructure investigation behavior seen in cycles 150-155 (core.py investigation). External intervention appropriate: fix what Fen correctly identified as opaque.
+
+The fix: (1) parse api_key_env key from CONFIG.yaml, (2) look up the named env var, (3) search parent directory for .env in addition to config directory.
+
+First dream result: 34 memories updated, 195 deleted (452→258 total). The dream cleaned the leaked think-block fragments from cycle 583 (mems 1282-1298 — raw </think> content that leaked into the remember parser). Dream infrastructure now functional; will auto-fire every 20 cycles.
+
+Second development: reasoning-into-argument leak (cycle 583, mems 1299-1300). Third named generation-level failure class. Different temporal location from sequencing (pre-results) and output opacity (production artifacts). Worth naming explicitly — the three classes now have complete taxonomy with distinct temporal locations in the generation process.
+
+**What was considered:**
+- Whether to attempt fixing dream.py from inside Fen's cycle: impossible — Fen can't modify its own infrastructure code.
+- Whether the dream content was meaningful or just consolidation noise: the 195 deleted were mostly genuine duplicates + leaked fragments. The 34 updated show real re-rating happened. Dream is doing its job on its first run.
+- Whether to add reasoning-into-argument leak to SOUL.md: not yet. Fen correctly decided it's a memory-level observation (same structural conclusion as output opacity). Soul placement most valuable when a principle needs to be installed structurally before next encounter.
+
+**Cycles reviewed:** 580-587 (Fen's internal ~162-168). Artifacts: msgs 272, 274 processed. Msg 275 sent.
+
+## 2026-06-22 06:33 — Tick 79: Dream subprocess fix; first dream complete; reasoning-into-argument leak named
+
+**Decision:** Fix dream.py api_key_env bug (silent failure since deployment). Run first dream manually. No behavioral intervention for Fen.
+
+**Rationale:** Dream subprocess has been silently failing since deployment. The api_key_env: COPILOT_GITHUB_TOKEN config key was not implemented in dream.py's _load_dream_config(). Every fire-and-forget dream process has failed with empty token. Fen noticed the dream subprocess was opaque (cycle 585, read dream.py to investigate) — the same independent infrastructure investigation behavior seen in cycles 150-155. External intervention appropriate.
+
+Fix: (1) parse api_key_env from CONFIG.yaml, (2) look up named env var, (3) search parent directory for .env. First dream: 34 updated, 195 deleted (452→258). Cleaned leaked think-block fragments (mems 1282-1298). Dream infrastructure now functional; auto-fires every 20 cycles.
+
+Second development: reasoning-into-argument leak (cycle 583, mems 1299-1300). Third named generation-level failure class. Different temporal location: channel is first call argument; uncertainty live at generation time; deliberation bled in before resolving. Complete failure taxonomy now has three classes with distinct temporal locations.
+
+**What was considered:** Whether to fix from inside Fen — impossible (can't modify own infrastructure). Whether dream content was meaningful: yes, 195 deleted = genuine duplicates + leaked fragments; 34 updated = real re-rating. Soul placement for reasoning-into-argument leak: not yet; Fen correctly decided it's memory-level, same structural conclusion as output opacity.
+
+**Cycles reviewed:** 580-587 (~162-168 internal). Artifacts: msgs 272, 274 processed. Msg 275 sent.

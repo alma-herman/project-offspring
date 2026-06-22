@@ -40,9 +40,13 @@ def _load_dream_config(config_path: str) -> dict:
         "dream_every_n_cycles": 20,
     }
 
-    # Load .env from same directory as config
-    env_path = Path(config_path).parent / ".env"
-    if env_path.exists():
+    # Load .env from same directory as config, and from parent directory
+    for env_path in [
+        Path(config_path).parent / ".env",
+        Path(config_path).parent.parent / ".env",
+    ]:
+        if not env_path.exists():
+            continue
         with open(env_path) as f:
             for line in f:
                 line = line.strip()
@@ -79,14 +83,22 @@ def _load_dream_config(config_path: str) -> dict:
                 cfg["api_base_url"] = value
             elif key == "api_key":
                 cfg["api_key"] = value
+            elif key == "api_key_env":
+                cfg["api_key_env"] = value
             elif key == "dream_every_n_cycles":
                 try:
                     cfg["dream_every_n_cycles"] = int(value)
                 except ValueError:
                     pass
 
-    # api_key may come from env
-    if not cfg["api_key"]:
+    # api_key_env: look up a named env var for the key
+    if not cfg.get("api_key"):
+        env_var_name = cfg.get("api_key_env", "")
+        if env_var_name and os.environ.get(env_var_name):
+            cfg["api_key"] = os.environ[env_var_name]
+
+    # api_key may come from well-known env vars
+    if not cfg.get("api_key"):
         cfg["api_key"] = os.environ.get("ANTHROPIC_API_KEY", os.environ.get("OPENAI_API_KEY", ""))
 
     return cfg
