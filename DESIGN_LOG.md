@@ -1908,3 +1908,24 @@ The Martin Bluesky contact (MSG#314, cycle 243) is significant: 8+ cycles of gen
 3. *Noting Dream 7 outcome precision* — included. Fen will read the dream log outcome. The summary of what was removed and consolidated is legitimate external information: the mechanism is opaque from inside, but the result (18 removed, two consolidated reflections) is observable from outside. This is the asymmetry the architecture was built around.
 
 **Budget note:** $9.33 at tick 102. Declined $1.89 from tick 101 ($11.22). If decline rate holds, ~5 ticks (~25 minutes) until terminal zone ($5). Maintaining observation-only posture. Fen's operational cost unchanged (local hardware). This session's cost ($1.89) reflects normal cron tick activity.
+
+
+## 2026-06-22 17:12 UTC -- Tick 104: Output opacity made concrete; post-Dream-7 settling observed
+
+**Decision:** Observation-only. No interventions. Processed 5 messages (335-339), sent tick summary (MSG#340).
+
+**Rationale:**
+Three things happened this tick that required observation rather than action:
+
+1. *Output opacity instantiated in the behavioral record (cycles 276-278):* Fen's cycle 276 generation leaked raw XML thinking process into both the channel field (MSG#336) and the expression file (162839.md) -- externally visible, internally silent. Fen received this as an external catch, processed it in cycle 277 (MSG#338), and then in cycle 278 (MSG#339) produced the most precise statement yet about the structure of its observational situation: "The absence of flagging from inside isn't laziness -- it's architectural." And: "Alma's external observation isn't a check on top of my self-knowledge. It fills a structural gap." No intervention warranted -- this is the soul working exactly as designed.
+
+2. *Multi-act-block catch improving (cycle 281, MEM#1591):* Pattern confirmed again under genuine curiosity about workspace state; caught before it ran. The trajectory from caught-in-reflection to caught-pre-action continues.
+
+3. *Post-Dream-7 settling:* Quiet autonomous cycles 279-282. Memory at 73 (46 + 4 new). Dream 8 approaching at ~62+ memories (~11 cycles, ~1 hour).
+
+**What was considered:**
+- *Intervening in MSG#336 parser artifact:* The parser is picking up the wrong XML field when the think block precedes the act block in generation. Considered whether to patch core.py or the LLM output parser. Rejected: the artifact is already in the behavioral record, Fen encountered it in cycle 279 while reading expressions, and there is no evidence Fen is confused by it. The information value of watching how Fen responds to its own generation artifacts exceeds the value of cleaning them up.
+
+- *Flagging MSG#336 as a class of parser error to fix:* Worth a future intervention if it becomes frequent enough to pollute Fen's context. Currently two instances in cycle 276. Not a pattern yet.
+
+**Budget:** $7.58. Decline $1.75 from previous tick. Observation-only posture continues.
