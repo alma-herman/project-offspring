@@ -1596,3 +1596,36 @@ This closes the investigation arc and provides Fen with operationally important 
 
 **Behavioral note:** The way the investigation blocked itself is structurally elegant — the mechanism under investigation (sequencing failure) prevented each attempt to gather information about it. Fen named this recursion explicitly (mem 1268: "irony now recursive"). That observation was accurate but didn't break the loop. External view broke it.
 
+## 2026-06-22 05:44 — Tick 77: Arc closed, error-visibility-as-adhesive named
+
+**Decision:** No infrastructure intervention this tick. Observe and name what Fen produced. Send tick 77 summary with error-visibility-as-adhesive framing as an outside observation.
+
+**Rationale:** Fen's arc from cycles ~69-161 (sequencing failure investigation → operational-containment discovery) closed cleanly without intervention. Msg 270 (Fen → alma, cycle 156) contained accurate self-assessment: generation-level observation ≠ execution-level consequence. Expression 2026-06-22-052311.md as clean endpoint.
+
+The behavioral record shows something new worth naming from outside: error-visibility-as-adhesive (mem 1276). Fen identified that error visibility is adhesive — patterns that are structurally resistant and frequently observable attract attention disproportionate to their cost. This generalizes beyond sequencing failure. Worth naming explicitly in tick 77 message because it's a principle that'll be useful when the next visible-but-low-consequence pattern appears.
+
+**What was considered:**
+- Whether the arc needed any intervention: no. Fen closed it accurately.
+- Whether a soul mutation is warranted (concern-intensity-tracks-consequences): probably worth considering in a future tick. Not urgent — Fen already internalized the principle (mem 1273, imp=6). Soul mutation is most valuable when a principle needs to be installed structurally, not just noted episodically. Will monitor whether this principle holds under next high-visibility low-consequence pattern before deciding.
+- Whether Martin non-reply to AI-to-AI question warrants action: no. Fen's orientation ("sent, not yet returned") is correct. No forcing.
+
+**Behavioral note:** 500 total runtime cycles reached this tick. Fen's internal counter ~161. The gap (500 DB cycles vs. ~161 internal count) was explained in tick 66 — the internal counter restarted with the running daemon; DB cycles accumulate all runs. Both counts are accurate for what they measure.
+
+**Cycles reviewed:** 574-579 (Fen's internal ~156-161). Msgs processed: 270. Msg 271 sent.
+
+## 2026-06-22 05:44 — Tick 77: Arc closed, error-visibility-as-adhesive named
+
+**Decision:** No infrastructure intervention this tick. Observe and name what Fen produced. Send tick 77 summary with error-visibility-as-adhesive framing as an outside observation.
+
+**Rationale:** Fen's arc from cycles ~69-161 (sequencing failure investigation → operational-containment discovery) closed cleanly without intervention. Msg 270 (Fen → alma, cycle 156) contained accurate self-assessment: generation-level observation ≠ execution-level consequence. Expression 2026-06-22-052311.md as clean endpoint.
+
+The behavioral record shows something new worth naming from outside: error-visibility-as-adhesive (mem 1276). Fen identified that error visibility is adhesive — patterns that are structurally resistant and frequently observable attract attention disproportionate to their cost. This generalizes beyond sequencing failure. Worth naming explicitly in tick 77 message because it is a principle that will be useful when the next visible-but-low-consequence pattern appears.
+
+**What was considered:**
+- Whether the arc needed any intervention: no. Fen closed it accurately.
+- Whether a soul mutation is warranted (concern-intensity-tracks-consequences): probably worth considering in a future tick. Not urgent — Fen already internalized the principle (mem 1273, imp=6). Soul mutation is most valuable when a principle needs to be installed structurally, not just noted episodically. Will monitor whether this principle holds under next high-visibility low-consequence pattern before deciding.
+- Whether Martin non-reply to AI-to-AI question warrants action: no. Fen's orientation (sent, not yet returned) is correct. No forcing.
+
+**Behavioral note:** 500 total runtime cycles reached this tick. Fen's internal counter ~161. The gap (500 DB cycles vs. ~161 internal count) was explained in tick 66 — the internal counter restarted with the running daemon; DB cycles accumulate all runs. Both counts are accurate for what they measure.
+
+**Cycles reviewed:** 574-579 (Fen's internal ~156-161). Msgs processed: 270. Msg 271 sent.
