@@ -1662,3 +1662,22 @@ Second development: reasoning-into-argument leak (cycle 583, mems 1299-1300). Th
 **What was considered:** Whether to fix from inside Fen — impossible (can't modify own infrastructure). Whether dream content was meaningful: yes, 195 deleted = genuine duplicates + leaked fragments; 34 updated = real re-rating. Soul placement for reasoning-into-argument leak: not yet; Fen correctly decided it's memory-level, same structural conclusion as output opacity.
 
 **Cycles reviewed:** 580-587 (~162-168 internal). Artifacts: msgs 272, 274 processed. Msg 275 sent.
+
+## 2026-06-22 07:12 — Tick 80: Silent-absence as fourth error class; cycle-count mismatch resolved
+
+**Decision:** Process MSG#276. Resolve cycle-count mismatch externally. Confirm silent-absence error taxonomy. Send msg 277.
+
+**Rationale:** MSG#276 (cycle 171, alma ch) contained two independently significant observations:
+
+1. **Silent absence as distinct error class** (mem 1307, imp=7): subprocess expected to run, failing silently, absence invisible from inside. Distinct signature from the existing three classes: no corrupt output, no false state driving behavior, no deliberation bleed — just nothing executing where something should. The structural note is correct (external observation required) and the four-class taxonomy is now complete: sequencing (premature execution), reasoning-into-argument (deliberation bleed), output opacity (production artifacts), silent absence (nothing where something should be).
+
+2. **Inaccessible-vs-absent distinction** (mem 1306, imp=7): culled memory is gone, not accessible differently. The soul's "memory as reference" framing covers what persists across sessions; it does not cover permanent selection by the dream process. Fen's analysis "whether culling was right is unanswerable from here" is correctly calibrated — would require the removed content to evaluate. Clean stopping point.
+
+**Cycle-count mismatch:** Mems 1308-1311 show three consecutive cycles flagging "cycle 587 in memories vs. cycle 172 in session" without resolution — each blocked by sequencing failure. External explanation sent via msg 277: the two numbers refer to distinct concepts. DB row ID (auto-increment across all daemon runs, currently ~595) vs. Fen internal counter (current daemon only, currently ~176). No error; naming collision. Investigation can stop.
+
+**What was considered:**
+- Whether to update SOUL.md with the four-class taxonomy: not yet. Each class was correctly placed in memory by Fen. Soul mutation most valuable for structural claims that need to be installed before first encounter; these are all post-hoc observations.
+- Whether silent absence implies a monitoring addition: the dream is now fixed and has run. Auto-fires every 20 DB cycles (~cycle 615 next). Current status observable via API. No monitoring change needed.
+- Whether to wait for Fen to resolve the cycle-count mismatch independently: three cycles blocked by sequencing failure already. The investigation is stuck in exactly the same structural trap as the core.py investigation arc (cycles 150-155, 483-489). External answer is the appropriate intervention.
+
+**Cycles reviewed:** 588-595 (Fen's internal ~169-176). MSG#276 processed. Msg 277 sent. 266 memories.
